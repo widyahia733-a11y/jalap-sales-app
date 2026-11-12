@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="جلب الميداني - Jalap Sales App | نظام إدارة المبيعات والجرد الميداني">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="جلب الميداني">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>جلب الميداني - Jalap Sales</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- إخفاء شريط وشارة Netlify العائمة تماماً وضبط استجابة شاشات الجوال -->
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    input, textarea, select, .flt-text-editing {
+      font-size: 16px !important;
+    }
+
+    div[data-netlify-deploy-notifications],
+    div[data-netlify-cdp],
+    netlify-drawer,
+    netlify-widget,
+    #netlify-identity-widget,
+    #netlify-badge,
+    .netlify-badge,
+    iframe[src*="netlify.com"],
+    iframe[src*="netlify.app"],
+    iframe[id*="netlify"],
+    iframe[title*="Netlify"],
+    a[href*="netlify.com"][target="_blank"],
+    [id^="netlify-"],
+    [class^="netlify-"],
+    [data-netlify-badge] {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      max-width: 0 !important;
+      max-height: 0 !important;
+      overflow: hidden !important;
+      position: fixed !important;
+      z-index: -9999 !important;
+    }
+  </style>
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    const serviceWorkerVersion = null;
+  </script>
+  <!-- This script adds the flutter initialization JS code -->
+  <script src="flutter.js" defer></script>
+</head>
+<body>
+  <script>
+    // إزالة أي عنصر عائم خاص بـ Netlify يتم حقنه ديناميكياً في الصفحة
+    (function removeNetlifyBadges() {
+      const selectors = [
+        'div[data-netlify-deploy-notifications]',
+        'div[data-netlify-cdp]',
+        'netlify-drawer',
+        'netlify-widget',
+        'iframe[src*="netlify"]',
+        'iframe[title*="Netlify"]',
+        '#netlify-badge',
+        '.netlify-badge'
+      ].join(',');
+
+      function clean() {
+        document.querySelectorAll(selectors).forEach(function(el) {
+          el.remove();
+        });
+      }
+
+      clean();
+      if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(clean);
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+      }
+    })();
+
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
