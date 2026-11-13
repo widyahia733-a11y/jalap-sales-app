@@ -1,24 +1,14 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="description" content="جلب الميداني - Jalap Sales App | نظام إدارة المبيعات والجرد الميداني">
 
   <!-- iOS meta tags & icons -->
@@ -32,6 +22,43 @@
 
   <title>جلب الميداني - Jalap Sales</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- مسح أي Service Worker أو كاش قديم فوراً لمنع بقاء النسخة القديمة على الجوال -->
+  <script>
+    (function clearLegacyServiceWorkerAndCache() {
+      try {
+        const CURRENT_BUILD_VERSION = 'jalap_v2026_11_14_r2';
+        const storedVersion = localStorage.getItem('jalap_build_version');
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+
+        if ('caches' in window && storedVersion !== CURRENT_BUILD_VERSION) {
+          caches.keys().then(function(cacheNames) {
+            return Promise.all(
+              cacheNames.map(function(cacheName) {
+                return caches.delete(cacheName);
+              })
+            );
+          }).then(function() {
+            localStorage.setItem('jalap_build_version', CURRENT_BUILD_VERSION);
+            if (storedVersion !== null) {
+              window.location.reload();
+            }
+          });
+        } else {
+          localStorage.setItem('jalap_build_version', CURRENT_BUILD_VERSION);
+        }
+      } catch (e) {
+        console.warn('Cache cleanup warning:', e);
+      }
+    })();
+  </script>
 
   <!-- ضبط أبعاد واتجاه جذر الويب لمنع انزياح عناصر Flutter على شاشات الجوال وإخفاء شارة Netlify -->
   <style>
@@ -79,14 +106,9 @@
     }
   </style>
 
-  <script>
-    // The value below is injected by flutter build, do not touch.
-    const serviceWorkerVersion = "2399687679";
-  </script>
-  <!-- This script adds the flutter initialization JS code -->
-  <script src="flutter.js" defer></script>
+  <script src="flutter.js?v=20261114r2" defer></script>
 </head>
-<body>
+<body dir="ltr">
   <script>
     // إزالة أي عنصر عائم خاص بـ Netlify يتم حقنه ديناميكياً في الصفحة
     (function removeNetlifyBadges() {
@@ -118,11 +140,9 @@
     })();
 
     window.addEventListener('load', function(ev) {
-      // Download main.dart.js
+      // تحميل main.dart.js مباشرة بدون Service Worker مع رقم إصدار لكسر الكاش
       _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
-        },
+        entrypointUrl: "main.dart.js?v=20261114r2",
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine().then(function(appRunner) {
             appRunner.runApp();

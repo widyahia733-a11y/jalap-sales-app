@@ -1094,14 +1094,19 @@ class _InventoryPageState extends State<InventoryPage> {
                                           color: colorScheme.onSurfaceVariant,
                                         ),
                                         const SizedBox(width: 4),
-                                        Text(
-                                          '${product.category} • ${product.unit}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: colorScheme.onSurfaceVariant,
+                                        Expanded(
+                                          child: Text(
+                                            '${product.category} • ${product.unit}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
                                           ),
                                         ),
-                                        const Spacer(),
+                                        const SizedBox(width: 8),
                                         Text(
                                           '${AppConstants.formatCurrency(product.cartonPrice, branch: widget.currentBranchId)} / كرتون',
                                           style: const TextStyle(

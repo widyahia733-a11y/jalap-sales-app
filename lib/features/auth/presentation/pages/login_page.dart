@@ -442,18 +442,25 @@ class _LoginPageState extends State<LoginPage> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
+                                    Text(
+                                      'البريد الإلكتروني',
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
                                     TextFormField(
                                       controller: _emailController,
                                       enabled: !_isLoading,
                                       keyboardType: TextInputType.emailAddress,
-                                      textDirection: TextDirection.ltr,
                                       textAlign: TextAlign.right,
                                       textInputAction: TextInputAction.next,
                                       autofillHints: const [
                                         AutofillHints.email,
                                       ],
                                       decoration: InputDecoration(
-                                        labelText: 'البريد الإلكتروني',
                                         hintText:
                                             AppConstants.defaultAdminEmail,
                                         prefixIcon: const Icon(
@@ -499,11 +506,19 @@ class _LoginPageState extends State<LoginPage> {
                                       },
                                     ),
                                     const SizedBox(height: 14),
+                                    Text(
+                                      'كلمة المرور',
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
                                     TextFormField(
                                       controller: _passwordController,
                                       enabled: !_isLoading,
                                       obscureText: _obscurePassword,
-                                      textDirection: TextDirection.ltr,
                                       textAlign: TextAlign.right,
                                       textInputAction: TextInputAction.done,
                                       autofillHints: const [
@@ -511,7 +526,6 @@ class _LoginPageState extends State<LoginPage> {
                                       ],
                                       onFieldSubmitted: (_) => _handleLogin(),
                                       decoration: InputDecoration(
-                                        labelText: 'كلمة المرور',
                                         hintText: '••••••••',
                                         prefixIcon: const Icon(
                                           Icons.lock_outline_rounded,
