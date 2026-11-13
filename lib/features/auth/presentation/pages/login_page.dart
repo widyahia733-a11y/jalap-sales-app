@@ -329,6 +329,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
+    final Size screenSize = MediaQuery.sizeOf(context);
+    final bool isSmallScreen = screenSize.width < 600;
+    final bool isVeryNarrow = screenSize.width < 360;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -338,11 +341,9 @@ class _LoginPageState extends State<LoginPage> {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              final bool isMobile = constraints.maxWidth < 600;
-              final bool isCompactMobile = constraints.maxWidth < 360;
-              final double horizontalPadding = isMobile ? 16.0 : 28.0;
-              final double verticalPadding = isMobile ? 16.0 : 32.0;
-              final double minContentHeight =
+              final double horizontalPadding = isSmallScreen ? 16.0 : 28.0;
+              final double verticalPadding = isSmallScreen ? 16.0 : 28.0;
+              final double availableHeight =
                   (constraints.maxHeight - (verticalPadding * 2))
                       .clamp(0.0, double.infinity);
 
@@ -355,21 +356,25 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: minContentHeight,
+                    minHeight: availableHeight,
+                    minWidth:
+                        (constraints.maxWidth - (horizontalPadding * 2))
+                            .clamp(0.0, double.infinity),
                   ),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 440),
+                      constraints: const BoxConstraints(maxWidth: 420),
                       child: Form(
                         key: _formKey,
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Center(
                               child: Container(
-                                width: isMobile ? 78 : 92,
-                                height: isMobile ? 78 : 92,
+                                width: isSmallScreen ? 76 : 90,
+                                height: isSmallScreen ? 76 : 90,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   gradient: LinearGradient(
@@ -384,23 +389,23 @@ class _LoginPageState extends State<LoginPage> {
                                     BoxShadow(
                                       color:
                                           colorScheme.primary.withOpacity(0.25),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 8),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 6),
                                     ),
                                   ],
                                 ),
                                 child: Icon(
                                   Icons.local_mall_rounded,
-                                  size: isMobile ? 38 : 44,
+                                  size: isSmallScreen ? 36 : 42,
                                   color: Colors.white,
                                 ),
                               ),
                             ),
-                            SizedBox(height: isMobile ? 16 : 20),
+                            SizedBox(height: isSmallScreen ? 14 : 20),
                             Text(
                               'جلب الميداني',
                               textAlign: TextAlign.center,
-                              style: (isMobile
+                              style: (isSmallScreen
                                       ? theme.textTheme.headlineSmall
                                       : theme.textTheme.headlineMedium)
                                   ?.copyWith(
@@ -417,21 +422,23 @@ class _LoginPageState extends State<LoginPage> {
                                 height: 1.4,
                               ),
                             ),
-                            SizedBox(height: isMobile ? 20 : 28),
+                            SizedBox(height: isSmallScreen ? 18 : 26),
                             Card(
                               elevation: 0,
                               color: colorScheme.primaryContainer
                                   .withOpacity(0.15),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
+                                borderRadius: BorderRadius.circular(22),
                                 side: BorderSide(
                                   color: colorScheme.outlineVariant
                                       .withOpacity(0.5),
                                 ),
                               ),
                               child: Padding(
-                                padding: EdgeInsets.all(isMobile ? 16 : 24),
+                                padding:
+                                    EdgeInsets.all(isSmallScreen ? 16 : 22),
                                 child: Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
@@ -442,7 +449,6 @@ class _LoginPageState extends State<LoginPage> {
                                       textDirection: TextDirection.ltr,
                                       textAlign: TextAlign.right,
                                       textInputAction: TextInputAction.next,
-                                      style: const TextStyle(fontSize: 16),
                                       autofillHints: const [
                                         AutofillHints.email,
                                       ],
@@ -457,23 +463,23 @@ class _LoginPageState extends State<LoginPage> {
                                         fillColor: colorScheme.surface,
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 16,
+                                          horizontal: 14,
+                                          vertical: 14,
                                         ),
                                         border: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                           borderSide: BorderSide(
                                             color: colorScheme.outlineVariant,
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                           borderSide: BorderSide(
                                             color: colorScheme.primary,
                                             width: 2,
@@ -492,7 +498,7 @@ class _LoginPageState extends State<LoginPage> {
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 14),
                                     TextFormField(
                                       controller: _passwordController,
                                       enabled: !_isLoading,
@@ -500,7 +506,6 @@ class _LoginPageState extends State<LoginPage> {
                                       textDirection: TextDirection.ltr,
                                       textAlign: TextAlign.right,
                                       textInputAction: TextInputAction.done,
-                                      style: const TextStyle(fontSize: 16),
                                       autofillHints: const [
                                         AutofillHints.password,
                                       ],
@@ -531,23 +536,23 @@ class _LoginPageState extends State<LoginPage> {
                                         fillColor: colorScheme.surface,
                                         contentPadding:
                                             const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 16,
+                                          horizontal: 14,
+                                          vertical: 14,
                                         ),
                                         border: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                           borderSide: BorderSide(
                                             color: colorScheme.outlineVariant,
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius:
-                                              BorderRadius.circular(16),
+                                              BorderRadius.circular(14),
                                           borderSide: BorderSide(
                                             color: colorScheme.primary,
                                             width: 2,
@@ -564,16 +569,16 @@ class _LoginPageState extends State<LoginPage> {
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 22),
+                                    const SizedBox(height: 20),
                                     SizedBox(
-                                      height: 54,
+                                      height: 52,
                                       child: FilledButton(
                                         onPressed:
                                             _isLoading ? null : _handleLogin,
                                         style: FilledButton.styleFrom(
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
-                                                BorderRadius.circular(16),
+                                                BorderRadius.circular(14),
                                           ),
                                           textStyle: const TextStyle(
                                             fontSize: 16,
@@ -595,7 +600,7 @@ class _LoginPageState extends State<LoginPage> {
                                                     MainAxisAlignment.center,
                                                 children: [
                                                   Icon(Icons.login_rounded),
-                                                  SizedBox(width: 10),
+                                                  SizedBox(width: 8),
                                                   Flexible(
                                                     child: Text(
                                                       'تسجيل الدخول للميدان',
@@ -611,7 +616,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
@@ -623,6 +628,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                               child: Column(
+                                mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Row(
@@ -646,7 +652,7 @@ class _LoginPageState extends State<LoginPage> {
                                     ],
                                   ),
                                   const SizedBox(height: 10),
-                                  if (isCompactMobile) ...[
+                                  if (isVeryNarrow) ...[
                                     OutlinedButton.icon(
                                       onPressed: _isLoading
                                           ? null
@@ -693,13 +699,17 @@ class _LoginPageState extends State<LoginPage> {
                                                   .admin_panel_settings_outlined,
                                               size: 18,
                                             ),
-                                            label: const Text(
-                                              'مشرف معتمد',
-                                              style: TextStyle(fontSize: 12.5),
+                                            label: const Flexible(
+                                              child: Text(
+                                                'مشرف معتمد',
+                                                overflow: TextOverflow.ellipsis,
+                                                style:
+                                                    TextStyle(fontSize: 12.5),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 10),
+                                        const SizedBox(width: 8),
                                         Expanded(
                                           child: OutlinedButton.icon(
                                             onPressed: _isLoading
@@ -711,9 +721,13 @@ class _LoginPageState extends State<LoginPage> {
                                               Icons.badge_outlined,
                                               size: 18,
                                             ),
-                                            label: const Text(
-                                              'مندوب ميداني',
-                                              style: TextStyle(fontSize: 12.5),
+                                            label: const Flexible(
+                                              child: Text(
+                                                'مندوب ميداني',
+                                                overflow: TextOverflow.ellipsis,
+                                                style:
+                                                    TextStyle(fontSize: 12.5),
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -722,7 +736,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

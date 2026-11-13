@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -33,20 +33,21 @@
   <title>جلب الميداني - Jalap Sales</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- إخفاء شريط وشارة Netlify العائمة تماماً وضبط استجابة شاشات الجوال -->
+  <!-- ضبط أبعاد واتجاه جذر الويب لمنع انزياح عناصر Flutter على شاشات الجوال وإخفاء شارة Netlify -->
   <style>
     html, body {
+      direction: ltr !important;
       width: 100%;
       height: 100%;
       margin: 0;
       padding: 0;
-      overflow-x: hidden;
+      overflow: hidden;
       -webkit-text-size-adjust: 100%;
       touch-action: manipulation;
     }
 
-    input, textarea, select, .flt-text-editing {
-      font-size: 16px !important;
+    flt-glass-pane {
+      direction: ltr !important;
     }
 
     div[data-netlify-deploy-notifications],
@@ -80,7 +81,7 @@
 
   <script>
     // The value below is injected by flutter build, do not touch.
-    const serviceWorkerVersion = "3987845483";
+    const serviceWorkerVersion = "2399687679";
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>

@@ -430,13 +430,16 @@ class _HomeTabView extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'ملخص الأداء الميداني ($branchCurrency)',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: AppConstants.deepNavyBlue,
+                  Expanded(
+                    child: Text(
+                      'ملخص الأداء الميداني ($branchCurrency)',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppConstants.deepNavyBlue,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
