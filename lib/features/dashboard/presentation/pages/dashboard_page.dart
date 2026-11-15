@@ -428,7 +428,7 @@ class _HomeTabView extends StatelessWidget {
                           child: Text(
                             pendingCount > 0
                                 ? 'نمط Offline-First نشط • توجد ($pendingCount) عمليات محفوظة في طابور المزامنة (Sync Queue) جاهزة للرفع'
-                                : 'نمط Offline-First نشط • جميع الأصناف الـ 27 والعملاء والطلبات محفوظة محلياً للعمل بدون إنترنت',
+                                : 'نمط Offline-First نشط • جميع أصناف كتالوج الربيع (ORDER) والعملاء والطلبات محفوظة محلياً للعمل بدون إنترنت',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: AppConstants.deepNavyBlue,
                               fontWeight: FontWeight.w700,
@@ -504,16 +504,16 @@ class _HomeTabView extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _SecondaryStatCard(
-                      title: 'حالة الجرد الأسبوعي',
-                      value: '27 / 27',
-                      subtitle: 'الأصناف المعتمدة',
+                      title: 'كتالوج أصناف الربيع',
+                      value: '62 / 62',
+                      subtitle: 'الأصناف المعتمدة (ORDER)',
                       icon: Icons.fact_check_rounded,
                       accentColor: Colors.teal.shade800,
                       backgroundColor: Colors.white,
                       borderColor: Colors.teal.shade300,
                       onTap: () => onQuickActionSelect(
                         1,
-                        actionLabel: 'الأصناف والجرد الأسبوعي',
+                        actionLabel: 'كتالوج وجرد أصناف الربيع',
                       ),
                     ),
                   ),
@@ -539,11 +539,11 @@ class _HomeTabView extends StatelessWidget {
               _QuickActionTile(
                 title: 'جرد جديد',
                 subtitle:
-                    'تسجيل الجرد الأسبوعي السريع (+ / -) للأصناف الـ 27 المعتمدة',
+                    'تسجيل الجرد الأسبوعي السريع (+ / -) لكتالوج أصناف الربيع بالصور والأكواد الرسمية',
                 icon: Icons.qr_code_scanner_rounded,
                 onTap: () => onQuickActionSelect(
                   1,
-                  actionLabel: 'الأصناف والجرد الأسبوعي (27 صنفاً)',
+                  actionLabel: 'كتالوج وجرد أصناف الربيع',
                 ),
               ),
               const SizedBox(height: 12),

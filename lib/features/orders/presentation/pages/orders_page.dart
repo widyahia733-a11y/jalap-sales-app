@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 
@@ -259,11 +260,11 @@ class _OrdersPageState extends State<OrdersPage> {
         branchName: 'الفرع الرئيسي - صنعاء',
         status: OrderStatus.pending,
         itemsCount: 18,
-        totalAmount: 182400.0,
+        totalAmount: 109400.0,
         createdAt: now.subtract(const Duration(minutes: 35)),
         summaryItems: const [
-          'عصير جلب مانجو طبيعي 1 لتر (10 كرتون)',
-          'جبنة جلب كريمية 500 جم (8 كرتون)',
+          '[43002001] عصير الربيع مانجو 18 × 185 ملي (10 كرتون)',
+          '[43001021] حليب الربيع وسط 27 × 250 ملي (8 كرتون)',
         ],
       ),
       FieldOrderModel(
@@ -273,11 +274,11 @@ class _OrdersPageState extends State<OrdersPage> {
         branchName: 'الفرع الرئيسي - صنعاء',
         status: OrderStatus.completed,
         itemsCount: 25,
-        totalAmount: 317500.0,
+        totalAmount: 168000.0,
         createdAt: now.subtract(const Duration(hours: 3)),
         summaryItems: const [
-          'زيت دوار الشمس جلب 1.5 لتر (15 كرتون)',
-          'تونة جلب لحم خفيف 185 جم (10 كرتون)',
+          '[43002051] عصير الربيع مانجو 8 × 1 لتر (15 كرتون)',
+          '[43002013] عصير الربيع برازما مانجو 18 × 250 ملي (10 كرتون)',
         ],
       ),
       FieldOrderModel(
@@ -287,10 +288,10 @@ class _OrdersPageState extends State<OrdersPage> {
         branchName: 'فرع الحديدة التجاري',
         status: OrderStatus.pending,
         itemsCount: 12,
-        totalAmount: 81600.0,
+        totalAmount: 62400.0,
         createdAt: now.subtract(const Duration(hours: 5)),
         summaryItems: const [
-          'حليب جلب كامل الدسم 1 لتر (12 كرتون)',
+          '[43001003] حليب الربيع بالشوكولاتة 18 × 185 ملي (12 كرتون)',
         ],
       ),
       FieldOrderModel(
@@ -300,10 +301,10 @@ class _OrdersPageState extends State<OrdersPage> {
         branchName: 'فرع تعز الميداني',
         status: OrderStatus.completed,
         itemsCount: 9,
-        totalAmount: 48600.0,
+        totalAmount: 66600.0,
         createdAt: now.subtract(const Duration(days: 1)),
         summaryItems: const [
-          'بسكويت جلب بالزبدة الفاخرة (9 كرتون)',
+          '[43003001] كابتشينو قهوة 330x18ملي (9 كرتون)',
         ],
       ),
       FieldOrderModel(
@@ -313,7 +314,7 @@ class _OrdersPageState extends State<OrdersPage> {
         branchName: 'فرع عدن - المعلا',
         status: OrderStatus.cancelled,
         itemsCount: 6,
-        totalAmount: 34800.0,
+        totalAmount: 27000.0,
         createdAt: now.subtract(const Duration(days: 1, hours: 4)),
         summaryItems: const [
           'تم إلغاء الطلب بناءً على طلب العميل لتعديل الكميات',
@@ -375,48 +376,17 @@ class _OrdersPageState extends State<OrdersPage> {
   /// فتح نافذة إضافة طلب ميداني جديد (Create Order Sheet)
   Future<void> _openCreateOrderSheet() async {
     String selectedCustomer = _availableCustomers.first;
-    final List<OrderLineItem> catalogLines = [
-      OrderLineItem(
-        productName: 'عصير جلب مانجو طبيعي 1 لتر',
-        unitPrice: 7200.0,
-        quantity: 2,
-      ),
-      OrderLineItem(
-        productName: 'حليب جلب كامل الدسم 1 لتر',
-        unitPrice: 6800.0,
-        quantity: 1,
-      ),
-      OrderLineItem(
-        productName: 'جبنة جلب كريمية 500 جم',
-        unitPrice: 13500.0,
-        quantity: 0,
-      ),
-      OrderLineItem(
-        productName: 'تونة جلب لحم خفيف 185 جم',
-        unitPrice: 14500.0,
-        quantity: 0,
-      ),
-      OrderLineItem(
-        productName: 'زيت دوار الشمس جلب 1.5 لتر',
-        unitPrice: 11500.0,
-        quantity: 0,
-      ),
-      OrderLineItem(
-        productName: 'زيت زيتون جلب بكر ممتاز 500 مل',
-        unitPrice: 18500.0,
-        quantity: 0,
-      ),
-      OrderLineItem(
-        productName: 'فول مدمس جلب الخلطة السرية 400 جم',
-        unitPrice: 5800.0,
-        quantity: 0,
-      ),
-      OrderLineItem(
-        productName: 'مكسرات جلب المشكلة المحمصة 250 جم',
-        unitPrice: 16000.0,
-        quantity: 0,
-      ),
-    ];
+    final List<OrderLineItem> catalogLines = List<OrderLineItem>.generate(
+      AlRabieCatalog.allProducts.length,
+      (idx) {
+        final p = AlRabieCatalog.allProducts[idx];
+        return OrderLineItem(
+          productName: '[${p.code}] ${p.name}',
+          unitPrice: p.cartonPrice,
+          quantity: idx == 0 ? 2 : (idx == 1 ? 1 : 0),
+        );
+      },
+    );
 
     bool isSubmitting = false;
 

@@ -1,33 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 import '../../../auth/data/models/user_profile_model.dart';
 
-/// نموذج مبسط لصنف ضمن واجهة المندوب الميدانية السريعة (الأصناف الـ 27 المعتمدة)
-class _SalesRepProductItem {
-  final String id;
-  final String code;
-  final String name;
-  final String category;
-  final String unit;
-  final double cartonPrice;
-
-  const _SalesRepProductItem({
-    required this.id,
-    required this.code,
-    required this.name,
-    required this.category,
-    required this.unit,
-    required this.cartonPrice,
-  });
-}
-
 /// واجهة مندوب المبيعات الميدانية السريعة والخفيفة (Sales Rep Field Interface)
-/// مصممة خصيصاً لزيارة التاجر وتحتوي على خيارين رئيسيين فقط:
-/// 1. جرد المخزون (الأصناف الـ 27 مع أزرار + / - وإدخال رقمي مباشر + زر إرسال الجرد للمشرف)
-/// 2. طلب بضاعة (شاشة سريعة لإرسال طلبات الأصناف للفرع)
+/// مرتبطة بالكامل بكتالوج أصناف الربيع الرسمي (اصناف الربيع.xlsx - ورقة ORDER) مع الصور والأكواد الرسمية.
 class SalesRepFieldPage extends StatefulWidget {
   final UserProfileModel userProfile;
   final bool isSigningOut;
@@ -49,7 +29,7 @@ class SalesRepFieldPage extends StatefulWidget {
 class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   final OfflineSyncService _offlineSync = OfflineSyncService.instance;
 
-  /// 0 = جرد المخزون (27 صنفاً) | 1 = طلب بضاعة للفرع
+  /// 0 = جرد المخزون | 1 = طلب بضاعة للفرع
   int _activeSection = 0;
 
   /// قائمة التجار / نقاط البيع الميدانية
@@ -64,43 +44,17 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     'بقالة وميني ماركت الأمانة - صنعاء',
   ];
 
-  /// القائمة المعتمدة للأصناف الـ 27
-  static const List<_SalesRepProductItem> _products27 = [
-    _SalesRepProductItem(id: 'prod-01', code: 'JLP-1001', name: 'عصير جلب مانجو طبيعي 250 مل', category: 'مشروبات وعصائر', unit: 'كرتون (24 عبوة)', cartonPrice: 4800),
-    _SalesRepProductItem(id: 'prod-02', code: 'JLP-1002', name: 'عصير جلب جوافة فاخر 250 مل', category: 'مشروبات وعصائر', unit: 'كرتون (24 عبوة)', cartonPrice: 4800),
-    _SalesRepProductItem(id: 'prod-03', code: 'JLP-1003', name: 'عصير جلب كوكتيل فواكه 250 مل', category: 'مشروبات وعصائر', unit: 'كرتون (24 عبوة)', cartonPrice: 5000),
-    _SalesRepProductItem(id: 'prod-04', code: 'JLP-1004', name: 'عصير جلب برتقال طازج 1 لتر', category: 'مشروبات وعصائر', unit: 'كرتون (12 عبوة)', cartonPrice: 7200),
-    _SalesRepProductItem(id: 'prod-05', code: 'JLP-1005', name: 'عصير جلب تفاح أحمر 1 لتر', category: 'مشروبات وعصائر', unit: 'كرتون (12 عبوة)', cartonPrice: 7200),
-    _SalesRepProductItem(id: 'prod-06', code: 'JLP-1006', name: 'مياه جلب النقية 330 مل', category: 'مياه معدنية', unit: 'كرتون (40 قارورة)', cartonPrice: 2200),
-    _SalesRepProductItem(id: 'prod-07', code: 'JLP-1007', name: 'مياه جلب النقية 600 مل', category: 'مياه معدنية', unit: 'كرتون (30 قارورة)', cartonPrice: 2400),
-    _SalesRepProductItem(id: 'prod-08', code: 'JLP-1008', name: 'مياه جلب العائلية 1.5 لتر', category: 'مياه معدنية', unit: 'كرتون (12 قارورة)', cartonPrice: 2100),
-    _SalesRepProductItem(id: 'prod-09', code: 'JLP-1009', name: 'حليب جلب كامل الدسم 1 لتر', category: 'ألبان ومنتجاتها', unit: 'كرتون (12 عبوة)', cartonPrice: 9600),
-    _SalesRepProductItem(id: 'prod-10', code: 'JLP-1010', name: 'حليب جلب قليل الدسم 1 لتر', category: 'ألبان ومنتجاتها', unit: 'كرتون (12 عبوة)', cartonPrice: 9600),
-    _SalesRepProductItem(id: 'prod-11', code: 'JLP-1011', name: 'حليب جلب بالموز للأطفال 200 مل', category: 'ألبان ومنتجاتها', unit: 'كرتون (27 عبوة)', cartonPrice: 6500),
-    _SalesRepProductItem(id: 'prod-12', code: 'JLP-1012', name: 'حليب جلب بالفراولة 200 مل', category: 'ألبان ومنتجاتها', unit: 'كرتون (27 عبوة)', cartonPrice: 6500),
-    _SalesRepProductItem(id: 'prod-13', code: 'JLP-1013', name: 'حليب جلب بالشوكولاتة 200 مل', category: 'ألبان ومنتجاتها', unit: 'كرتون (27 عبوة)', cartonPrice: 6500),
-    _SalesRepProductItem(id: 'prod-14', code: 'JLP-1014', name: 'زبادي جلب طازج كامل الدسم 170 جم', category: 'ألبان ومنتجاتها', unit: 'كرتون (24 علبة)', cartonPrice: 4200),
-    _SalesRepProductItem(id: 'prod-15', code: 'JLP-1015', name: 'لبن رائب جلب المراعي 500 مل', category: 'ألبان ومنتجاتها', unit: 'كرتون (20 عبوة)', cartonPrice: 5400),
-    _SalesRepProductItem(id: 'prod-16', code: 'JLP-1016', name: 'جبنة مثلثات جلب الكريمية 8 قطع', category: 'أجبان ومعلبات', unit: 'كرتون (36 علبة)', cartonPrice: 14400),
-    _SalesRepProductItem(id: 'prod-17', code: 'JLP-1017', name: 'جبنة كاسات جلب الذهبية 500 جم', category: 'أجبان ومعلبات', unit: 'كرتون (12 برطمان)', cartonPrice: 18000),
-    _SalesRepProductItem(id: 'prod-18', code: 'JLP-1018', name: 'قشطة جلب التاج الفاخرة 170 جم', category: 'أجبان ومعلبات', unit: 'كرتون (48 علبة)', cartonPrice: 19200),
-    _SalesRepProductItem(id: 'prod-19', code: 'JLP-1019', name: 'تونة جلب لحم أبيض بالزيت 185 جم', category: 'أجبان ومعلبات', unit: 'كرتون (48 علبة)', cartonPrice: 28800),
-    _SalesRepProductItem(id: 'prod-20', code: 'JLP-1020', name: 'فول مدمس جلب بالخلطة السرية 400 جم', category: 'بقوليات ومعلبات', unit: 'كرتون (24 علبة)', cartonPrice: 7800),
-    _SalesRepProductItem(id: 'prod-21', code: 'JLP-1021', name: 'فاصوليا بيضاء جلب بصلصة الطماطم 400 جم', category: 'بقوليات ومعلبات', unit: 'كرتون (24 علبة)', cartonPrice: 8400),
-    _SalesRepProductItem(id: 'prod-22', code: 'JLP-1022', name: 'بازلاء خضراء جلب طازجة 400 جم', category: 'بقوليات ومعلبات', unit: 'كرتون (24 علبة)', cartonPrice: 7600),
-    _SalesRepProductItem(id: 'prod-23', code: 'JLP-1023', name: 'معجون طماطم جلب المركز 135 جم', category: 'زيوت وصلصات', unit: 'كرتون (48 علبة)', cartonPrice: 9200),
-    _SalesRepProductItem(id: 'prod-24', code: 'JLP-1024', name: 'زيت دوار الشمس جلب النقي 1.5 لتر', category: 'زيوت وصلصات', unit: 'كرتون (12 قارورة)', cartonPrice: 16800),
-    _SalesRepProductItem(id: 'prod-25', code: 'JLP-1025', name: 'أرز بسمتي جلب حبة طويلة 5 كجم', category: 'بقوليات وحبوب', unit: 'كرتون (4 أكياس)', cartonPrice: 22000),
-    _SalesRepProductItem(id: 'prod-26', code: 'JLP-1026', name: 'شاي جلب الأسود الكيني الفاخر 400 جم', category: 'مشروبات ساخنة', unit: 'كرتون (24 عبوة)', cartonPrice: 24000),
-    _SalesRepProductItem(id: 'prod-27', code: 'JLP-1027', name: 'بسكويت جلب بالزبدة والقمح 100 جم', category: 'بسكويت وخفايف', unit: 'كرتون (48 باكت)', cartonPrice: 6800),
-  ];
+  /// القائمة الرسمية الكاملة لأصناف الربيع المستخرجة من ملف (اصناف الربيع.xlsx - ORDER)
+  static const List<AlRabieProduct> _catalogProducts =
+      AlRabieCatalog.allProducts;
 
   String _selectedMerchant = _merchants.first;
+  String _selectedCategory = 'الكل';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _orderNotesController = TextEditingController();
 
-  // بيانات جرد المخزون (كرتون + عبوة لكل صنف من الـ 27)
+  // بيانات جرد المخزون (كرتون + عبوة لكل صنف)
   final Map<String, int> _auditCartons = <String, int>{};
   final Map<String, int> _auditPacks = <String, int>{};
   final Map<String, TextEditingController> _auditCartonControllers =
@@ -121,7 +75,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   @override
   void initState() {
     super.initState();
-    for (final item in _products27) {
+    for (final item in _catalogProducts) {
       _auditCartons[item.id] = 0;
       _auditPacks[item.id] = 0;
       _auditCartonControllers[item.id] = TextEditingController(text: '0');
@@ -148,13 +102,16 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     super.dispose();
   }
 
-  List<_SalesRepProductItem> get _filteredProducts {
+  List<AlRabieProduct> get _filteredProducts {
     final query = _searchQuery.trim().toLowerCase();
-    if (query.isEmpty) return _products27;
-    return _products27.where((p) {
-      return p.name.toLowerCase().contains(query) ||
+    return _catalogProducts.where((p) {
+      final matchesCategory =
+          _selectedCategory == 'الكل' || p.category == _selectedCategory;
+      final matchesQuery = query.isEmpty ||
+          p.name.toLowerCase().contains(query) ||
           p.code.toLowerCase().contains(query) ||
           p.category.toLowerCase().contains(query);
+      return matchesCategory && matchesQuery;
     }).toList();
   }
 
@@ -202,7 +159,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   int get _auditedItemsCount {
     int count = 0;
-    for (final p in _products27) {
+    for (final p in _catalogProducts) {
       if ((_auditCartons[p.id] ?? 0) > 0 || (_auditPacks[p.id] ?? 0) > 0) {
         count++;
       }
@@ -224,7 +181,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   double get _totalOrderAmount {
     double total = 0;
-    for (final p in _products27) {
+    for (final p in _catalogProducts) {
       final qty = _orderCartons[p.id] ?? 0;
       if (qty > 0) {
         total += qty * p.cartonPrice;
@@ -264,22 +221,26 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
           'AUD-${now.month}${now.day}-${now.millisecondsSinceEpoch.toString().substring(9)}';
       bool syncedOnline = false;
 
-      // حفظ الكاش المحلي وتجهيز الإرسال للمشرف
       final Map<String, Map<String, dynamic>> localAuditCache =
           _offlineSync.getCachedInventoryAudits();
 
-      for (final product in _products27) {
+      for (final product in _catalogProducts) {
         final cartons = _auditCartons[product.id] ?? 0;
         final packs = _auditPacks[product.id] ?? 0;
         if (cartons > 0 || packs > 0) {
           final entryMap = <String, dynamic>{
             'product_id': product.id,
+            'sku': product.code,
+            'product_name': product.name,
+            'category': product.category,
+            'carton_qty': cartons,
+            'pack_qty': packs,
             'carton_count': cartons,
             'pack_count': packs,
-            'damaged_count': 0,
-            'returned_count': 0,
+            'damaged_qty': 0,
+            'returned_qty': 0,
             'notes':
-                'جرد ميداني مرسل للمشرف ($batchRef) - التاجر: $_selectedMerchant',
+                'جرد ميداني مرسل للمشرف ($batchRef) - التاجر: $_selectedMerchant - [${product.code}] ${product.name}',
             'audited_at': now.toIso8601String(),
           };
           localAuditCache[product.id] = entryMap;
@@ -289,12 +250,12 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
             action: 'upsert',
             payload: <String, dynamic>{
               'product_id': product.id,
-              'carton_count': cartons,
-              'pack_count': packs,
-              'damaged_count': 0,
-              'returned_count': 0,
+              'carton_qty': cartons,
+              'pack_qty': packs,
+              'damaged_qty': 0,
+              'returned_qty': 0,
               'notes':
-                  'مُرسل للمشرف ($batchRef) | التاجر: $_selectedMerchant | المندوب: ${widget.userProfile.fullName}',
+                  'مُرسل للمشرف ($batchRef) | الصنف: [${product.code}] ${product.name} | التاجر: $_selectedMerchant | المندوب: ${widget.userProfile.fullName}',
               'branch_id':
                   widget.userProfile.branchId ?? 'الفرع الرئيسي - صنعاء',
               'audited_by': widget.userProfile.id,
@@ -307,7 +268,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       await _offlineSync.cacheInventoryAudits(localAuditCache);
 
       final summaryText =
-          'تم إرسال الجرد ($batchRef) للمشرف بنجاح • التاجر: $_selectedMerchant • الأصناف المجرودة: $_auditedItemsCount / 27 ($_totalAuditCartons كرتون و $_totalAuditPacks عبوة)';
+          'تم إرسال الجرد ($batchRef) للمشرف بنجاح • التاجر: $_selectedMerchant • الأصناف المجرودة: $_auditedItemsCount / ${_catalogProducts.length} ($_totalAuditCartons كرتون و $_totalAuditPacks عبوة)';
 
       if (mounted) {
         setState(() {
@@ -335,7 +296,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                     Expanded(
                       child: Text(
                         syncedOnline
-                            ? 'تم إرسال الجرد للمشرف ومزامنته مباشرة ($batchRef)'
+                            ? 'تم إرسال جرد أصناف الربيع للمشرف ومزامنته مباشرة ($batchRef)'
                             : 'تم اعتماد الجرد ($batchRef) وحفظه للإرسال للمشرف فور توفر الشبكة',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
@@ -388,10 +349,10 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       final totalCartons = _totalOrderCartons;
 
       final List<String> summaryItems = <String>[];
-      for (final p in _products27) {
+      for (final p in _catalogProducts) {
         final qty = _orderCartons[p.id] ?? 0;
         if (qty > 0) {
-          summaryItems.add('${p.name} ($qty كرتون)');
+          summaryItems.add('[${p.code}] ${p.name} ($qty كرتون)');
         }
       }
 
@@ -434,7 +395,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
         setState(() {
           _lastOrderSubmissionBanner =
               'تم إرسال الطلب ($orderNumber) للفرع • التاجر: $_selectedMerchant • $totalCartons كرتون • الإجمالي: $formattedTotal';
-          for (final p in _products27) {
+          for (final p in _catalogProducts) {
             _orderCartons[p.id] = 0;
             _orderCartonControllers[p.id]?.text = '0';
           }
@@ -462,7 +423,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                     Expanded(
                       child: Text(
                         syncedOnline
-                            ? 'تم إرسال طلب البضاعة ($orderNumber) للفرع بنجاح ($formattedTotal)'
+                            ? 'تم إرسال طلب أصناف الربيع ($orderNumber) للفرع بنجاح ($formattedTotal)'
                             : 'تم حفظ طلب البضاعة ($orderNumber) محلياً وسيتم إرساله للفرع فور توفر الشبكة ($formattedTotal)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
@@ -482,7 +443,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   void _resetCurrentAuditQuantities() {
     setState(() {
-      for (final p in _products27) {
+      for (final p in _catalogProducts) {
         _auditCartons[p.id] = 0;
         _auditPacks[p.id] = 0;
         _auditCartonControllers[p.id]?.text = '0';
@@ -496,6 +457,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colorScheme = theme.colorScheme;
     final filtered = _filteredProducts;
+    final totalCatalogCount = _catalogProducts.length;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -535,7 +497,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                       ),
                     ),
                     Text(
-                      'بوابة المندوب الميداني • ${widget.userProfile.branchId ?? "الفرع الرئيسي"}',
+                      'مندوب مبيعات الربيع • ${widget.userProfile.branchId ?? "الفرع الرئيسي"}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -612,11 +574,11 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
           child: Column(
             children: [
               // ===============================================================
-              // 1. شريط اختيار التاجر + الخيارين الرئيسيين عند زيارة التاجر
+              // 1. شريط اختيار التاجر + الخيارين الرئيسيين + البحث والفئات
               // ===============================================================
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -679,10 +641,10 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
                     // الخياران الرئيسيان للمندوب عند زيارة التاجر:
-                    // 1) جرد المخزون (27 صنفاً)  |  2) طلب بضاعة للفرع
+                    // 1) جرد المخزون  |  2) طلب بضاعة للفرع
                     Row(
                       children: [
                         Expanded(
@@ -690,8 +652,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                             isSelected: _activeSection == 0,
                             icon: Icons.fact_check_rounded,
                             title: 'جرد المخزون',
-                            subtitle: 'الأصناف الـ 27 + إرسال للمشرف',
-                            badgeText: '$_auditedItemsCount/27',
+                            subtitle: 'كتالوج الربيع + إرسال للمشرف',
+                            badgeText: '$_auditedItemsCount/$totalCatalogCount',
                             onTap: () => setState(() => _activeSection = 0),
                           ),
                         ),
@@ -704,21 +666,21 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                             subtitle: 'إرسال طلب سريع للفرع',
                             badgeText: _totalOrderCartons > 0
                                 ? '$_totalOrderCartons كرتون'
-                                : 'سريع',
+                                : 'ORDER',
                             onTap: () => setState(() => _activeSection = 1),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
-                    // شريط البحث السريع في الأصناف الـ 27
+                    // شريط البحث السريع بالاسم أو رقم الصنف الرسمي (43002001 / JLP-3001)
                     TextField(
                       controller: _searchController,
                       onChanged: (val) => setState(() => _searchQuery = val),
                       decoration: InputDecoration(
                         hintText:
-                            'ابحث في الأصناف الـ 27 بالاسم أو الكود (JLP-1001)...',
+                            'ابحث بالاسم أو رقم الصنف (43002001 أو JLP-3001)...',
                         prefixIcon: const Icon(Icons.search_rounded, size: 20),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
@@ -748,6 +710,43 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                           borderRadius: BorderRadius.circular(14),
                           borderSide: BorderSide.none,
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // شريط تصنيفات أصناف الربيع (عصير 185، 330، 1 لتر، برازما، حليب، شراب...)
+                    SizedBox(
+                      height: 36,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: AlRabieCatalog.categories.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 6),
+                        itemBuilder: (context, index) {
+                          final cat = AlRabieCatalog.categories[index];
+                          final isSelected = _selectedCategory == cat;
+                          return ChoiceChip(
+                            label: Text(cat),
+                            selected: isSelected,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) {
+                              setState(() => _selectedCategory = cat);
+                            },
+                            selectedColor: AppConstants.softRoyalGold,
+                            backgroundColor: AppConstants.cleanLightGrey,
+                            side: BorderSide(
+                              color: isSelected
+                                  ? AppConstants.royalGold
+                                  : Colors.grey.shade300,
+                            ),
+                            labelStyle: TextStyle(
+                              fontSize: 11.5,
+                              color: AppConstants.deepNavyBlue,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -819,7 +818,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
               ],
 
               // ===============================================================
-              // 2. قائمة الأصناف الـ 27 (جرد المخزون أو طلب البضاعة)
+              // 2. قائمة أصناف الربيع (جرد المخزون أو طلب البضاعة) مع الصور الرسمية
               // ===============================================================
               Expanded(
                 child: _activeSection == 0
@@ -840,8 +839,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     );
   }
 
-  /// قائمة جرد الأصناف الـ 27 (بأزرار + / - أو الإدخال الرقمي المباشر)
-  Widget _buildInventoryAuditList(List<_SalesRepProductItem> products) {
+  /// قائمة جرد أصناف الربيع مع الصورة الرسمية وأزرار (+ / -) أو الإدخال الرقمي المباشر
+  Widget _buildInventoryAuditList(List<AlRabieProduct> products) {
     if (products.isEmpty) {
       return const Center(
         child: Text('لا توجد أصناف مطابقة لبحثك.'),
@@ -874,65 +873,94 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppConstants.deepNavyBlue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        product.code,
-                        textDirection: TextDirection.ltr,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppConstants.royalGold,
-                        ),
-                      ),
+                    AlRabieProductThumbnail(
+                      imageAsset: product.imageAsset,
+                      category: product.category,
+                      size: 54,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: AppConstants.deepNavyBlue,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppConstants.deepNavyBlue,
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text(
+                                  product.code,
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppConstants.royalGold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  product.category,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                              if (isEntered)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppConstants.softRoyalGold,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Text(
+                                    'مجرود',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppConstants.deepNavyBlue,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            product.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AppConstants.deepNavyBlue,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            product.unit,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    if (isEntered)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppConstants.softRoyalGold,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'مجرود',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: AppConstants.deepNavyBlue,
-                          ),
-                        ),
-                      ),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${product.category} • ${product.unit}',
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: Colors.black54,
-                  ),
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -955,7 +983,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _DirectNumericStepper(
-                        label: 'عبوة',
+                        label: 'عبوة (فرط)',
                         controller: _auditPackControllers[product.id]!,
                         primaryColor: Colors.blueGrey.shade800,
                         onDecrement: () => _setAuditPack(product.id, packs - 1),
@@ -976,8 +1004,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     );
   }
 
-  /// قائمة طلب البضاعة السريع للفرع
-  Widget _buildQuickOrderList(List<_SalesRepProductItem> products) {
+  /// قائمة طلب البضاعة السريع للفرع مع الصور الرسمية
+  Widget _buildQuickOrderList(List<AlRabieProduct> products) {
     if (products.isEmpty) {
       return const Center(
         child: Text('لا توجد أصناف مطابقة لبحثك.'),
@@ -1036,6 +1064,12 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
+                AlRabieProductThumbnail(
+                  imageAsset: product.imageAsset,
+                  category: product.category,
+                  size: 52,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   flex: 6,
                   child: Column(
@@ -1065,21 +1099,32 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              product.name,
+                              product.category,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13.5,
-                                color: AppConstants.deepNavyBlue,
+                                fontSize: 11,
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
+                      Text(
+                        product.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                          color: AppConstants.deepNavyBlue,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
                       Text(
                         '${AppConstants.formatCurrency(product.cartonPrice, branch: widget.userProfile.branchId)} / كرتون',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700,
                           color: Colors.black54,
                         ),
@@ -1098,7 +1143,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   flex: 5,
                   child: _DirectNumericStepper(
@@ -1144,7 +1189,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'الأصناف المجرودة: $_auditedItemsCount / 27',
+                  'المجرود: $_auditedItemsCount / ${_catalogProducts.length}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 13,

@@ -54,9 +54,9 @@ class OfflineSyncService {
 
   static final OfflineSyncService instance = OfflineSyncService._();
 
-  static const String _keyProductsCache = 'jalap_cache_products_v1';
-  static const String _keyAuditsCache = 'jalap_cache_inventory_audits_v1';
-  static const String _keyOrdersCache = 'jalap_cache_orders_v1';
+  static const String _keyProductsCache = 'jalap_cache_products_alrabie_v2';
+  static const String _keyAuditsCache = 'jalap_cache_inventory_audits_alrabie_v2';
+  static const String _keyOrdersCache = 'jalap_cache_orders_alrabie_v2';
   static const String _keyCustomersCache = 'jalap_cache_customers_v1';
   static const String _keySyncQueue = 'jalap_sync_queue_v1';
 

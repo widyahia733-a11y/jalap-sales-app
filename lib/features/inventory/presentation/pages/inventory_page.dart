@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 
-/// نموذج بيانات الصنف المرتبط بجدول `products` (الأصناف الـ 27 المعتمدة)
+/// نموذج بيانات الصنف المرتبط بجدول `products` وكتالوج أصناف الربيع الرسمي (اصناف الربيع.xlsx - ORDER)
 class ProductItemModel {
   final String id;
   final String code;
@@ -13,6 +14,7 @@ class ProductItemModel {
   final String unit;
   final double cartonPrice;
   final int packPerCarton;
+  final String imageAsset;
 
   const ProductItemModel({
     required this.id,
@@ -22,21 +24,41 @@ class ProductItemModel {
     required this.unit,
     required this.cartonPrice,
     required this.packPerCarton,
+    required this.imageAsset,
   });
 
-  factory ProductItemModel.fromJson(Map<String, dynamic> json, int index) {
+  factory ProductItemModel.fromAlRabie(AlRabieProduct p) {
     return ProductItemModel(
-      id: json['id']?.toString() ??
-          'PRD-${(index + 1).toString().padLeft(2, '0')}',
-      code: json['code']?.toString() ??
-          json['sku']?.toString() ??
-          'JLP-${(index + 1).toString().padLeft(3, '0')}',
-      name: (json['name'] ?? json['product_name'] ?? 'صنف جلب ${index + 1}')
-          .toString(),
-      category: (json['category'] ?? 'الأصناف الأساسية').toString(),
-      unit: (json['unit'] ?? 'كرتون / عبوة').toString(),
-      cartonPrice: _toDouble(json['price'] ?? json['carton_price'], 8500.0),
-      packPerCarton: _toInt(json['pack_per_carton'] ?? json['packs'], 12),
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      category: p.category,
+      unit: p.unit,
+      cartonPrice: p.cartonPrice,
+      packPerCarton: p.packPerCarton,
+      imageAsset: p.imageAsset,
+    );
+  }
+
+  factory ProductItemModel.fromJson(Map<String, dynamic> json, int index) {
+    final code = json['code']?.toString() ??
+        json['sku']?.toString() ??
+        'JLP-${(3001 + index)}';
+    final name =
+        (json['name'] ?? json['product_name'] ?? 'صنف الربيع ${index + 1}')
+            .toString();
+    final imageAsset = json['image_asset']?.toString() ??
+        AlRabieCatalog.resolveImageByCodeOrName(code, name);
+
+    return ProductItemModel(
+      id: json['id']?.toString() ?? 'rabie-$code',
+      code: code,
+      name: name,
+      category: (json['category'] ?? 'عصير الربيع 185 مل').toString(),
+      unit: (json['unit'] ?? 'كرتون (18 عبوة)').toString(),
+      cartonPrice: _toDouble(json['price'] ?? json['carton_price'], 5400.0),
+      packPerCarton: _toInt(json['pack_per_carton'] ?? json['packs'], 18),
+      imageAsset: imageAsset,
     );
   }
 
@@ -44,11 +66,13 @@ class ProductItemModel {
     return {
       'id': id,
       'code': code,
+      'sku': code,
       'name': name,
       'category': category,
       'unit': unit,
       'carton_price': cartonPrice,
       'pack_per_carton': packPerCarton,
+      'image_asset': imageAsset,
     };
   }
 
@@ -89,10 +113,14 @@ class InventoryAuditEntry {
   factory InventoryAuditEntry.fromJson(Map<String, dynamic> json) {
     return InventoryAuditEntry(
       productId: json['product_id']?.toString() ?? '',
-      cartonCount: (json['carton_qty'] as num?)?.toInt() ?? 0,
-      packCount: (json['pack_qty'] as num?)?.toInt() ?? 0,
-      damagedCount: (json['damaged_qty'] as num?)?.toInt() ?? 0,
-      returnedCount: (json['returned_qty'] as num?)?.toInt() ?? 0,
+      cartonCount:
+          (json['carton_qty'] ?? json['carton_count'] as num?)?.toInt() ?? 0,
+      packCount: (json['pack_qty'] ?? json['pack_count'] as num?)?.toInt() ?? 0,
+      damagedCount:
+          (json['damaged_qty'] ?? json['damaged_count'] as num?)?.toInt() ?? 0,
+      returnedCount:
+          (json['returned_qty'] ?? json['returned_count'] as num?)?.toInt() ??
+              0,
       notes: json['notes']?.toString() ?? '',
       auditedAt: DateTime.tryParse(json['audited_at']?.toString() ?? '') ??
           DateTime.now(),
@@ -133,8 +161,7 @@ class InventoryAuditEntry {
   }
 }
 
-/// الشاشة الكاملة للأصناف والجرد الميداني الأسبوعي (27 صنفاً معتمداً)
-/// تدعم التخزين المحلي (Offline-First) والإدخال السريع (+ / -) داخل البطاقات بيد واحدة.
+/// الشاشة الكاملة لكتالوج أصناف الربيع والجرد الميداني الأسبوعي (ورقة ORDER - 62 صنفاً رسمياً بالصور)
 class InventoryPage extends StatefulWidget {
   final String? currentUserId;
   final String? currentBranchId;
@@ -160,14 +187,7 @@ class _InventoryPageState extends State<InventoryPage> {
   String _searchQuery = '';
   bool _isLoading = false;
 
-  static const List<String> _categories = [
-    'الكل',
-    'المشروبات والعصائر',
-    'الألبان والأجبان',
-    'المعلبات الغذائية',
-    'الزيوت والسمن',
-    'الوجبات الخفيفة',
-  ];
+  static const List<String> _categories = AlRabieCatalog.categories;
 
   @override
   void initState() {
@@ -181,28 +201,29 @@ class _InventoryPageState extends State<InventoryPage> {
     super.dispose();
   }
 
-  /// تهيئة قائمة الأصناف الـ 27 مع دعم التخزين المحلي (Local Cache) والمزامنة
+  /// تهيئة قائمة أصناف الربيع المعتمدة مع دعم التخزين المحلي (Local Cache) والمزامنة
   Future<void> _initializeInventoryData() async {
     setState(() => _isLoading = true);
 
-    final List<ProductItemModel> default27Products =
-        _generateApproved27Products();
+    final List<ProductItemModel> officialCatalogProducts = AlRabieCatalog
+        .allProducts
+        .map(ProductItemModel.fromAlRabie)
+        .toList();
 
-    // 1. استرجاع الأصناف المخزنة محلياً إن وجدت
     final cachedProductsJson = _offlineSync.getCachedProducts();
-    if (cachedProductsJson.isNotEmpty) {
+    if (cachedProductsJson.length >= officialCatalogProducts.length) {
       _allProducts = List<ProductItemModel>.generate(
         cachedProductsJson.length,
         (i) => ProductItemModel.fromJson(cachedProductsJson[i], i),
       );
     } else {
-      _allProducts = default27Products;
+      _allProducts = officialCatalogProducts;
       await _offlineSync.cacheProducts(
         _allProducts.map((p) => p.toJson()).toList(),
       );
     }
 
-    // 2. استرجاع سجلات الجرد المخزنة محلياً
+    // استرجاع سجلات الجرد المخزنة محلياً
     final cachedAuditsMap = _offlineSync.getCachedInventoryAudits();
     if (cachedAuditsMap.isNotEmpty) {
       _auditRecords.clear();
@@ -210,31 +231,31 @@ class _InventoryPageState extends State<InventoryPage> {
         _auditRecords[productId] = InventoryAuditEntry.fromJson(map);
       });
     } else if (_auditRecords.isEmpty) {
-      for (int i = 0; i < 22; i++) {
+      for (int i = 0; i < _allProducts.length && i < 24; i++) {
         final item = _allProducts[i];
         _auditRecords[item.id] = InventoryAuditEntry(
           productId: item.id,
-          cartonCount: 15 + (i % 10),
-          packCount: (i * 2) % 12,
-          damagedCount: i % 7 == 0 ? 1 : 0,
-          returnedCount: i % 5 == 0 ? 2 : 0,
-          notes: 'جرد دوري معتمد',
+          cartonCount: 18 + (i % 12),
+          packCount: (i * 2) % item.packPerCarton,
+          damagedCount: i % 9 == 0 ? 1 : 0,
+          returnedCount: i % 7 == 0 ? 2 : 0,
+          notes: 'جرد دوري معتمد - أصناف الربيع (${item.code})',
           auditedAt: DateTime.now().subtract(Duration(hours: i + 1)),
         );
       }
       await _persistAuditsLocally();
     }
 
-    // 3. محاولة التحديث من Supabase إذا كان متصلاً
+    // محاولة التحديث من Supabase إذا كان متصلاً ويحتوي على الكتالوج الكامل
     if (AppConstants.isSupabaseConfigured) {
       try {
         final supabase = Supabase.instance.client;
         final List<dynamic> rows = await supabase
             .from(AppConstants.tableProducts)
             .select()
-            .limit(50);
+            .limit(100);
 
-        if (rows.isNotEmpty) {
+        if (rows.length >= officialCatalogProducts.length) {
           final fetched = <ProductItemModel>[];
           for (int i = 0; i < rows.length; i++) {
             fetched.add(ProductItemModel.fromJson(rows[i], i));
@@ -281,7 +302,7 @@ class _InventoryPageState extends State<InventoryPage> {
           packCount: 0,
           damagedCount: 0,
           returnedCount: 0,
-          notes: 'إدخال ميداني سريع',
+          notes: 'إدخال ميداني سريع [${product.code}]',
           auditedAt: DateTime.now(),
         );
 
@@ -309,57 +330,10 @@ class _InventoryPageState extends State<InventoryPage> {
     );
   }
 
-  /// توليد قائمة الأصناف الـ 27 المعتمدة بالعملة المحلية (ر.ي)
-  List<ProductItemModel> _generateApproved27Products() {
-    const List<Map<String, dynamic>> rawItems = [
-      {'name': 'عصير جلب مانجو طبيعي 1 لتر', 'cat': 'المشروبات والعصائر', 'price': 7200.0, 'packs': 12},
-      {'name': 'عصير جلب برتقال فاخر 1 لتر', 'cat': 'المشروبات والعصائر', 'price': 7200.0, 'packs': 12},
-      {'name': 'عصير جلب فواكه مشكلة 1 لتر', 'cat': 'المشروبات والعصائر', 'price': 7000.0, 'packs': 12},
-      {'name': 'عصير جلب تفاح أحمر 250 مل', 'cat': 'المشروبات والعصائر', 'price': 4800.0, 'packs': 24},
-      {'name': 'مشروب جلب جوافة نكتار 250 مل', 'cat': 'المشروبات والعصائر', 'price': 4800.0, 'packs': 24},
-      {'name': 'مياه جلب النقية 330 مل', 'cat': 'المشروبات والعصائر', 'price': 2200.0, 'packs': 40},
-      {'name': 'حليب جلب كامل الدسم 1 لتر', 'cat': 'الألبان والأجبان', 'price': 6800.0, 'packs': 12},
-      {'name': 'حليب جلب قليل الدسم 1 لتر', 'cat': 'الألبان والأجبان', 'price': 6800.0, 'packs': 12},
-      {'name': 'جبنة جلب كريمية قابلة للدهن 500 جم', 'cat': 'الألبان والأجبان', 'price': 13500.0, 'packs': 12},
-      {'name': 'جبنة جلب موزاريلا مبشورة 1 كجم', 'cat': 'الألبان والأجبان', 'price': 19000.0, 'packs': 6},
-      {'name': 'قشطة جلب التاج الفاخرة 170 جم', 'cat': 'الألبان والأجبان', 'price': 9600.0, 'packs': 24},
-      {'name': 'لبنة جلب التركية الفاخرة 400 جم', 'cat': 'الألبان والأجبان', 'price': 11000.0, 'packs': 12},
-      {'name': 'تونة جلب لحم خفيف بالزيت 185 جم', 'cat': 'المعلبات الغذائية', 'price': 14500.0, 'packs': 24},
-      {'name': 'فول مدمس جلب الخلطة السرية 400 جم', 'cat': 'المعلبات الغذائية', 'price': 5800.0, 'packs': 24},
-      {'name': 'حمص جلب بالطحينة الجاهز 400 جم', 'cat': 'المعلبات الغذائية', 'price': 6200.0, 'packs': 24},
-      {'name': 'معجون طماطم جلب المركز 135 جم', 'cat': 'المعلبات الغذائية', 'price': 7500.0, 'packs': 48},
-      {'name': 'ذرة حلوة جلب الذهبية 340 جم', 'cat': 'المعلبات الغذائية', 'price': 8200.0, 'packs': 24},
-      {'name': 'ورق عنب جلب محشي جاهز 400 جم', 'cat': 'المعلبات الغذائية', 'price': 12000.0, 'packs': 12},
-      {'name': 'زيت دوار الشمس جلب النقي 1.5 لتر', 'cat': 'الزيوت والسمن', 'price': 11500.0, 'packs': 6},
-      {'name': 'زيت ذرة جلب الصافي 1.5 لتر', 'cat': 'الزيوت والسمن', 'price': 12500.0, 'packs': 6},
-      {'name': 'زيت زيتون جلب بكر ممتاز 500 مل', 'cat': 'الزيوت والسمن', 'price': 18500.0, 'packs': 12},
-      {'name': 'سمن جلب النباتي الفاخر 1 كجم', 'cat': 'الزيوت والسمن', 'price': 14000.0, 'packs': 12},
-      {'name': 'بسكويت جلب بالزبدة الفاخرة 80 جم', 'cat': 'الوجبات الخفيفة', 'price': 5400.0, 'packs': 24},
-      {'name': 'ويفر جلب بالشوكولاتة والبندق 45 جم', 'cat': 'الوجبات الخفيفة', 'price': 4200.0, 'packs': 36},
-      {'name': 'شيبس جلب بالملح البحري 150 جم', 'cat': 'الوجبات الخفيفة', 'price': 6000.0, 'packs': 20},
-      {'name': 'شيبس جلب بالجبنة الحارة 150 جم', 'cat': 'الوجبات الخفيفة', 'price': 6000.0, 'packs': 20},
-      {'name': 'مكسرات جلب المشكلة المحمصة 250 جم', 'cat': 'الوجبات الخفيفة', 'price': 16000.0, 'packs': 12},
-    ];
-
-    return List<ProductItemModel>.generate(rawItems.length, (index) {
-      final item = rawItems[index];
-      final numCode = (index + 1).toString().padLeft(2, '0');
-      return ProductItemModel(
-        id: 'PRD-$numCode',
-        code: 'JLP-10$numCode',
-        name: item['name'] as String,
-        category: item['cat'] as String,
-        unit: '${item['packs']} عبوة / كرتون',
-        cartonPrice: item['price'] as double,
-        packPerCarton: item['packs'] as int,
-      );
-    });
-  }
-
   List<ProductItemModel> get _filteredProducts {
     return _allProducts.where((product) {
-      final matchesCategory = _selectedCategory == 'الكل' ||
-          product.category == _selectedCategory;
+      final matchesCategory =
+          _selectedCategory == 'الكل' || product.category == _selectedCategory;
       final query = _searchQuery.trim().toLowerCase();
       final matchesSearch = query.isEmpty ||
           product.name.toLowerCase().contains(query) ||
@@ -369,7 +343,7 @@ class _InventoryPageState extends State<InventoryPage> {
     }).toList();
   }
 
-  /// اعتماد جرد كافة الأصناف المتبقية دفعة واحدة (إكمال 27/27) وحفظها محلياً وفي طابور المزامنة
+  /// اعتماد جرد كافة الأصناف المتبقية دفعة واحدة وحفظها محلياً وفي طابور المزامنة
   Future<void> _completeAllRemainingAudits() async {
     setState(() {
       for (final product in _allProducts) {
@@ -377,11 +351,11 @@ class _InventoryPageState extends State<InventoryPage> {
           product.id,
           () => InventoryAuditEntry(
             productId: product.id,
-            cartonCount: 12,
+            cartonCount: 15,
             packCount: 0,
             damagedCount: 0,
             returnedCount: 0,
-            notes: 'اعتماد سريع للجرد الأسبوعي',
+            notes: 'اعتماد سريع للجرد الأسبوعي [${product.code}]',
             auditedAt: DateTime.now(),
           ),
         );
@@ -400,11 +374,11 @@ class _InventoryPageState extends State<InventoryPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          content: const Directionality(
+          content: Directionality(
             textDirection: TextDirection.rtl,
             child: Text(
-              'تم اعتماد وحفظ جرد جميع الأصناف الـ 27 محلياً وفي طابور المزامنة (27/27)',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              'تم اعتماد وحفظ جرد جميع أصناف الربيع (${_allProducts.length}/${_allProducts.length}) محلياً وفي طابور المزامنة',
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -546,15 +520,15 @@ class _InventoryPageState extends State<InventoryPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Row(
+                      Row(
                         children: [
-                          CircleAvatar(
-                            backgroundColor: AppConstants.softRoyalGold,
-                            foregroundColor: AppConstants.deepNavyBlue,
-                            child: Icon(Icons.fact_check_rounded),
+                          AlRabieProductThumbnail(
+                            imageAsset: selectedProduct.imageAsset,
+                            category: selectedProduct.category,
+                            size: 52,
                           ),
-                          SizedBox(width: 12),
-                          Expanded(
+                          const SizedBox(width: 12),
+                          const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -566,7 +540,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                   ),
                                 ),
                                 Text(
-                                  'حفظ محلي فوري مع مزامنة تلقائية لجدول (inventory_audits)',
+                                  'كتالوج الربيع الرسمي • مزامنة تلقائية لجدول (inventory_audits)',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.black54,
@@ -582,7 +556,7 @@ class _InventoryPageState extends State<InventoryPage> {
                         value: selectedProduct,
                         isExpanded: true,
                         decoration: InputDecoration(
-                          labelText: 'الصنف المجرود',
+                          labelText: 'الصنف المجرود (رقم الصنف - الاسم)',
                           prefixIcon: const Icon(Icons.inventory_2_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -731,9 +705,9 @@ class _InventoryPageState extends State<InventoryPage> {
     return Scaffold(
       backgroundColor: AppConstants.cleanLightGrey,
       appBar: AppBar(
-        title: const Text(
-          'الأصناف والجرد الأسبوعي (27 صنفاً)',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        title: Text(
+          'كتالوج وجرد أصناف الربيع ($totalCount صنفاً)',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
         backgroundColor: AppConstants.deepNavyBlue,
         foregroundColor: Colors.white,
@@ -777,7 +751,7 @@ class _InventoryPageState extends State<InventoryPage> {
           : Column(
               children: [
                 // =============================================================
-                // 1. البطاقة الإحصائية الملكية لحالة الجرد الأسبوعي (27/27)
+                // 1. البطاقة الإحصائية الملكية لحالة الجرد الأسبوعي لكتالوج الربيع
                 // =============================================================
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
@@ -827,7 +801,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'حالة الجرد الأسبوعي للأصناف',
+                                    'كتالوج أصناف الربيع المعتمد (ORDER)',
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: FontWeight.w800,
                                       color: Colors.white,
@@ -836,7 +810,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                   const SizedBox(height: 3),
                                   Text(
                                     remainingCount == 0
-                                        ? 'مكتمل بالكامل لهذا الأسبوع (27/27) ومحفوظ محلياً'
+                                        ? 'مكتمل بالكامل لهذا الأسبوع ($totalCount/$totalCount) ومحفوظ محلياً'
                                         : 'تم جرد $completedCount صنفاً ومتبقي $remainingCount أصناف',
                                     style: const TextStyle(
                                       fontSize: 12,
@@ -885,7 +859,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 ),
 
                 // =============================================================
-                // 2. شريط البحث السريع والفلترة حسب الفئة
+                // 2. شريط البحث السريع والفلترة حسب فئات الربيع
                 // =============================================================
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -893,7 +867,8 @@ class _InventoryPageState extends State<InventoryPage> {
                     controller: _searchController,
                     onChanged: (val) => setState(() => _searchQuery = val),
                     decoration: InputDecoration(
-                      hintText: 'ابحث باسم الصنف أو الكود (مثال: JLP-1001)...',
+                      hintText:
+                          'ابحث باسم الصنف أو رقم الصنف (43002001 أو JLP-3001)...',
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
@@ -960,7 +935,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 const SizedBox(height: 8),
 
                 // =============================================================
-                // 3. قائمة الأصناف الـ 27 مع أزرار الإدخال السريعة (+ / -) للكرتون والعبوة
+                // 3. قائمة أصناف الربيع مع الصور الرسمية وأزرار الإدخال السريعة (+ / -)
                 // =============================================================
                 Expanded(
                   child: filtered.isEmpty
@@ -994,48 +969,89 @@ class _InventoryPageState extends State<InventoryPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // رأس البطاقة (الكود + الاسم + شارة الحالة)
+                                    // رأس البطاقة (الصورة + الكود + الاسم + شارة الحالة)
                                     InkWell(
                                       onTap: () => _openAuditEntrySheet(
                                         initialProduct: product,
                                       ),
                                       child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
                                         children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppConstants.deepNavyBlue,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              product.code,
-                                              textDirection: TextDirection.ltr,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppConstants.royalGold,
-                                              ),
-                                            ),
+                                          AlRabieProductThumbnail(
+                                            imageAsset: product.imageAsset,
+                                            category: product.category,
+                                            size: 58,
                                           ),
-                                          const SizedBox(width: 8),
+                                          const SizedBox(width: 12),
                                           Expanded(
-                                            child: Text(
-                                              product.name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 15,
-                                                color:
-                                                    AppConstants.deepNavyBlue,
-                                              ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: AppConstants
+                                                            .deepNavyBlue,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(8),
+                                                      ),
+                                                      child: Text(
+                                                        product.code,
+                                                        textDirection:
+                                                            TextDirection.ltr,
+                                                        style: const TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: AppConstants
+                                                              .royalGold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        product.category,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 11.5,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 5),
+                                                Text(
+                                                  product.name,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 14.5,
+                                                    color: AppConstants
+                                                        .deepNavyBlue,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
+                                          const SizedBox(width: 6),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
+                                              horizontal: 9,
                                               vertical: 4,
                                             ),
                                             decoration: BoxDecoration(
@@ -1057,7 +1073,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                                   isAudited
                                                       ? Icons.verified_rounded
                                                       : Icons.schedule_rounded,
-                                                  size: 14,
+                                                  size: 13,
                                                   color: isAudited
                                                       ? AppConstants
                                                           .deepNavyBlue
@@ -1065,11 +1081,9 @@ class _InventoryPageState extends State<InventoryPage> {
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  isAudited
-                                                      ? 'تم الجرد'
-                                                      : 'غير مجرود',
+                                                  isAudited ? 'مجرود' : 'انتظار',
                                                   style: TextStyle(
-                                                    fontSize: 11,
+                                                    fontSize: 10.5,
                                                     fontWeight: FontWeight.bold,
                                                     color: isAudited
                                                         ? AppConstants
@@ -1085,18 +1099,18 @@ class _InventoryPageState extends State<InventoryPage> {
                                     ),
                                     const SizedBox(height: 8),
 
-                                    // الفئة والسعر بالعملة الديناميكية (ر.ي)
+                                    // التعبئة والسعر بالعملة الديناميكية (ر.ي)
                                     Row(
                                       children: [
                                         Icon(
-                                          Icons.category_outlined,
+                                          Icons.inventory_2_outlined,
                                           size: 14,
                                           color: colorScheme.onSurfaceVariant,
                                         ),
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
-                                            '${product.category} • ${product.unit}',
+                                            product.unit,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
