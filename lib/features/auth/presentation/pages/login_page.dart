@@ -49,7 +49,7 @@ class _LoginPageState extends State<LoginPage> {
     debugPrint('=============================================================');
   }
 
-  /// تعبئة سريعة لبيانات حساب تجريبي (مشرف أو مندوب) بضغطة واحدة
+  /// تعبئة سريعة ودخول فوري لحساب تجريبي (مشرف أو مندوب ميداني) بضغطة واحدة
   void _applyDemoCredentials({required bool asAdmin}) {
     setState(() {
       _emailController.text = asAdmin
@@ -57,6 +57,7 @@ class _LoginPageState extends State<LoginPage> {
           : AppConstants.defaultSalesEmail;
       _passwordController.text = AppConstants.defaultPassword;
     });
+    _handleLogin();
   }
 
   /// التحقق مما إذا كان البريد المدخل هو أحد الحسابات الافتراضية المعتمدة
@@ -82,7 +83,7 @@ class _LoginPageState extends State<LoginPage> {
           ? 'مشرف نظام / مندوب معتمد'
           : 'مندوب المبيعات الميداني',
       role: isAdmin ? 'admin' : 'sales_rep',
-      branchId: isAdmin ? 'الفرع الرئيسي - الإدارة' : 'فرع الرياض الميداني',
+      branchId: isAdmin ? 'الفرع الرئيسي - الإدارة' : 'الفرع الرئيسي - صنعاء',
       isActive: true,
       createdAt: DateTime.now(),
     );

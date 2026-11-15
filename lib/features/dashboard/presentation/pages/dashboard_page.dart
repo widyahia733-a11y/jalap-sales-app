@@ -9,6 +9,7 @@ import '../../../customers/presentation/pages/customers_page.dart';
 import '../../../inventory/presentation/pages/inventory_page.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../sales_rep/presentation/pages/sales_rep_field_page.dart';
 
 /// الهيكل الرئيسي للتطبيق (Main Dashboard & Navigation Shell)
 /// مصمم بالهوية البصرية الملكية (Deep Navy Blue & Royal Gold) ويدعم العمل بدون إنترنت (Offline-First).
@@ -29,6 +30,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isSigningOut = false;
 
   late final UserProfileModel _currentUser;
+  late bool _useSalesRepQuickMode;
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _DashboardPageState extends State<DashboardPage> {
           branchId: 'الفرع الرئيسي - صنعاء',
           isActive: true,
         );
+    _useSalesRepQuickMode = _currentUser.isSales;
   }
 
   /// الانتقال السريع إلى قسم محدد عبر شريط التنقل السفلي
@@ -112,6 +115,17 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_useSalesRepQuickMode) {
+      return SalesRepFieldPage(
+        userProfile: _currentUser,
+        isSigningOut: _isSigningOut,
+        onSignOut: _handleSignOut,
+        onSwitchToFullDashboard: () {
+          setState(() => _useSalesRepQuickMode = false);
+        },
+      );
+    }
+
     final List<Widget> pages = [
       _HomeTabView(
         userProfile: _currentUser,
