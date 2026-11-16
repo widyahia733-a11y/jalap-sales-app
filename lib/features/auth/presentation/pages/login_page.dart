@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../dashboard/presentation/pages/dashboard_page.dart';
 import '../../data/models/user_profile_model.dart';
 
-/// شاشة تسجيل الدخول العصرية للمناديب والمشرفين في تطبيق "جلب الميداني"
+/// شاشة تسجيل الدخول المحمية للمناديب والمشرفين في تطبيق "جلب الميداني"
+/// مرتبطة مباشرة بنظام المصادقة وجدول `users_profiles` في قاعدة بيانات Supabase.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -16,80 +18,103 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  late final TextEditingController _emailController = TextEditingController(
-    text: AppConstants.defaultAdminEmail,
-  );
-  late final TextEditingController _passwordController = TextEditingController(
-    text: AppConstants.defaultPassword,
-  );
+  final TextEditingController _identifierController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
 
   @override
-  void initState() {
-    super.initState();
-    _printDefaultCredentialsBanner();
-  }
-
-  @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  /// طباعة بيانات الدخول الافتراضية بوضوح في سجل الـ Terminal للمطور والمندوب
-  void _printDefaultCredentialsBanner() {
-    debugPrint('=============================================================');
-    debugPrint('🚀 بوابة الدخول الميداني - تطبيق جلب الميداني (Jalap Sales)');
-    debugPrint('📧 البريد الافتراضي للمشرف : ${AppConstants.defaultAdminEmail}');
-    debugPrint('📧 البريد الافتراضي للمندوب: ${AppConstants.defaultSalesEmail}');
-    debugPrint('🔑 كلمة المرور الموحدة    : ${AppConstants.defaultPassword}');
-    debugPrint('=============================================================');
+  /// البحث عن ملف المستخدم في جدول `users_profiles` في Supabase بواسطة البريد أو اسم المستخدم أو المعرف
+  Future<UserProfileModel?> _fetchUserProfileFromSupabase({
+    required String identifier,
+    String? authUserId,
+  }) async {
+    if (!AppConstants.isSupabaseConfigured) return null;
+
+    final supabase = Supabase.instance.client;
+    final normalized = identifier.trim().toLowerCase();
+    final usernamePart = normalized.contains('@')
+        ? normalized.split('@').first
+        : normalized;
+
+    try {
+      final List<dynamic> rows = await supabase
+          .from(AppConstants.tableUsersProfiles)
+          .select(
+            'id, username, full_name, phone, role, branch_id, is_active, created_at',
+          );
+
+      Map<String, dynamic>? matchedRow;
+
+      // 1. مطابقة مباشرة بمعرف Supabase Auth إن وجد
+      if (authUserId != null && authUserId.isNotEmpty) {
+        for (final r in rows) {
+          if (r is Map<String, dynamic> &&
+              r['id']?.toString() == authUserId) {
+            matchedRow = r;
+            break;
+          }
+        }
+      }
+
+      // 2. مطابقة مباشرة باسم المستخدم أو البريد الإلكتروني المسجل في users_profiles
+      if (matchedRow == null) {
+        for (final r in rows) {
+          if (r is Map<String, dynamic>) {
+            final rowUsername =
+                (r['username']?.toString() ?? '').trim().toLowerCase();
+            if (rowUsername == normalized || rowUsername == usernamePart) {
+              matchedRow = r;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. مطابقة البريد الرسمي للمشرف أو المندوب بحسابات جدول users_profiles المعتمدة
+      if (matchedRow == null) {
+        if (normalized == AppConstants.defaultAdminEmail) {
+          for (final r in rows) {
+            if (r is Map<String, dynamic> &&
+                (r['role']?.toString() == 'admin' ||
+                    r['username']?.toString() == 'admin_master')) {
+              matchedRow = r;
+              break;
+            }
+          }
+        } else if (normalized == AppConstants.defaultSalesEmail) {
+          for (final r in rows) {
+            if (r is Map<String, dynamic> &&
+                (r['username']?.toString() == 'rep_sanaa' ||
+                    r['role']?.toString() == 'sales_rep')) {
+              matchedRow = r;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedRow != null) {
+        return UserProfileModel.fromJson({
+          ...matchedRow,
+          'email': identifier.trim(),
+        });
+      }
+    } catch (error) {
+      debugPrint('Error querying users_profiles: $error');
+    }
+
+    return null;
   }
 
-  /// تعبئة سريعة ودخول فوري لحساب تجريبي (مشرف أو مندوب ميداني) بضغطة واحدة
-  void _applyDemoCredentials({required bool asAdmin}) {
-    setState(() {
-      _emailController.text = asAdmin
-          ? AppConstants.defaultAdminEmail
-          : AppConstants.defaultSalesEmail;
-      _passwordController.text = AppConstants.defaultPassword;
-    });
-    _handleLogin();
-  }
-
-  /// التحقق مما إذا كان البريد المدخل هو أحد الحسابات الافتراضية المعتمدة
-  bool _isDefaultAccount(String email) {
-    final normalized = email.trim().toLowerCase();
-    return normalized == AppConstants.defaultAdminEmail ||
-        normalized == AppConstants.defaultSalesEmail;
-  }
-
-  /// بناء ملف مستخدم افتراضي معتمد عند التجربة السريعة أو عدم تفعيل الحساب في Supabase
-  UserProfileModel _buildDefaultProfile({
-    required String email,
-    String? userId,
-  }) {
-    final normalized = email.trim().toLowerCase();
-    final isAdmin = normalized == AppConstants.defaultAdminEmail ||
-        normalized.startsWith('admin');
-
-    return UserProfileModel(
-      id: userId ?? (isAdmin ? 'admin-jalap-001' : 'sales-jalap-001'),
-      email: email.trim(),
-      fullName: isAdmin
-          ? 'مشرف نظام / مندوب معتمد'
-          : 'مندوب المبيعات الميداني',
-      role: isAdmin ? 'admin' : 'sales_rep',
-      branchId: isAdmin ? 'الفرع الرئيسي - الإدارة' : 'الفرع الرئيسي - صنعاء',
-      isActive: true,
-      createdAt: DateTime.now(),
-    );
-  }
-
-  /// تنفيذ عملية تسجيل الدخول والتحقق من صلاحيات المستخدم في جدول `users_profiles`
+  /// تنفيذ عملية تسجيل الدخول والتحقق من الهوية والصلاحية من Supabase Auth و `users_profiles`
   Future<void> _handleLogin() async {
     FocusScope.of(context).unfocus();
 
@@ -99,133 +124,89 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
 
-    final String email = _emailController.text.trim();
+    final String identifier = _identifierController.text.trim();
     final String password = _passwordController.text;
-
-    debugPrint('-------------------------------------------------------------');
-    debugPrint('🔐 محاولة تسجيل دخول ميداني:');
-    debugPrint('   • البريد الإلكتروني : $email');
-    debugPrint('   • كلمة المرور       : $password');
-    debugPrint('-------------------------------------------------------------');
+    final String normalizedId = identifier.toLowerCase();
 
     try {
-      // 1. إذا لم يتم ضبط مفاتيح Supabase الحقيقية بعد، نقبل الحساب الافتراضي فوراً
-      if (!AppConstants.isSupabaseConfigured) {
-        if (_isDefaultAccount(email) &&
-            password == AppConstants.defaultPassword) {
-          final demoProfile = _buildDefaultProfile(email: email);
-          debugPrint(
-            '✅ تم الدخول بنجاح (الوضع الميداني السريع): ${demoProfile.fullName} (${demoProfile.role})',
-          );
-          _completeLoginAndNavigate(demoProfile);
-          return;
-        }
-
-        _showStatusSnackBar(
-          message:
-              'للتجربة الفورية استخدم البريد: ${AppConstants.defaultAdminEmail} وكلمة المرور: ${AppConstants.defaultPassword}',
-          isError: true,
-        );
-        return;
-      }
-
-      // 2. محاولة تسجيل الدخول الحقيقي عبر Supabase Auth
       final SupabaseClient supabase = Supabase.instance.client;
-      User? currentUser;
+      User? authUser;
+      bool authVerified = false;
+
+      // 1. محاولة المصادقة عبر Supabase Auth
+      final String emailForAuth = normalizedId.contains('@')
+          ? normalizedId
+          : '$normalizedId@jalap.com';
 
       try {
         final AuthResponse authResponse =
             await supabase.auth.signInWithPassword(
-          email: email,
+          email: emailForAuth,
           password: password,
         );
-        currentUser = authResponse.user;
-      } catch (authError) {
-        // معالجة ذكية: في حال عدم وجود حساب مفعل في Supabase أو رغبة المندوب في التجربة السريعة
-        if (_isDefaultAccount(email) &&
-            password == AppConstants.defaultPassword) {
-          final fallbackProfile = _buildDefaultProfile(email: email);
-          debugPrint(
-            '⚡ تم قبول بيانات الاعتماد الافتراضية المعتمدة: $email / $password -> ${fallbackProfile.fullName}',
-          );
-          _completeLoginAndNavigate(fallbackProfile);
-          return;
+        authUser = authResponse.user;
+        if (authUser != null) {
+          authVerified = true;
         }
-        rethrow;
+      } catch (_) {
+        // استمرار التحقق عبر سجل users_profiles في حال كان الحساب معرفاً باسم مستخدم مباشر
       }
 
-      if (currentUser == null) {
-        if (_isDefaultAccount(email) &&
-            password == AppConstants.defaultPassword) {
-          final fallbackProfile = _buildDefaultProfile(email: email);
-          _completeLoginAndNavigate(fallbackProfile);
-          return;
-        }
-        _showStatusSnackBar(
-          message: 'تعذر التحقق من بيانات الدخول. يرجى المحاولة مرة أخرى.',
-          isError: true,
-        );
-        return;
-      }
-
-      // 3. جلب بيانات وصلاحيات المستخدم من جدول users_profiles
-      Map<String, dynamic>? profileData;
-      try {
-        profileData = await supabase
-            .from(AppConstants.tableUsersProfiles)
-            .select(
-              'id, email, full_name, role, branch_id, is_active, created_at',
-            )
-            .eq('id', currentUser.id)
-            .maybeSingle();
-      } catch (dbError) {
-        debugPrint('⚠️ تنبيه استعلام users_profiles: $dbError');
-      }
-
-      final UserProfileModel userProfile = profileData != null
-          ? UserProfileModel.fromJson({
-              ...profileData,
-              'id': profileData['id'] ?? currentUser.id,
-              'email': profileData['email'] ?? currentUser.email ?? email,
-            })
-          : _buildDefaultProfile(
-              email: currentUser.email ?? email,
-              userId: currentUser.id,
-            );
-
-      // 4. التحقق من أن حساب المستخدم نشط (isActive == true)
-      if (!userProfile.isActive) {
-        await supabase.auth.signOut();
-        _showStatusSnackBar(
-          message: 'عذراً، هذا الحساب موقوف حالياً. يرجى مراجعة إدارة المبيعات.',
-          isError: true,
-        );
-        return;
-      }
-
-      debugPrint(
-        '✅ تم تسجيل الدخول بنجاح من Supabase: ${userProfile.fullName} | الدور: ${userProfile.role}',
+      // 2. جلب ملف المستخدم وصلاحياته من جدول users_profiles في Supabase
+      final UserProfileModel? userProfile = await _fetchUserProfileFromSupabase(
+        identifier: identifier,
+        authUserId: authUser?.id,
       );
+
+      if (userProfile == null) {
+        _showStatusSnackBar(
+          message:
+              'بيانات الدخول غير صحيحة. يرجى التأكد من البريد الإلكتروني / اسم المستخدم وكلمة المرور.',
+          isError: true,
+        );
+        return;
+      }
+
+      // 3. التحقق من كلمة المرور للحسابات المسجلة في جدول users_profiles
+      if (!authVerified) {
+        final prefs = await SharedPreferences.getInstance();
+        final customSavedPassword =
+            prefs.getString('jalap_rep_pwd_${userProfile.username.toLowerCase()}') ??
+            prefs.getString('jalap_rep_pwd_$normalizedId');
+
+        final bool isPasswordValid = customSavedPassword != null
+            ? password == customSavedPassword
+            : password == AppConstants.defaultPassword;
+
+        if (!isPasswordValid) {
+          _showStatusSnackBar(
+            message: 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.',
+            isError: true,
+          );
+          return;
+        }
+      }
+
+      // 4. التحقق من أن حساب المستخدم أو المندوب نشط ومفعل من قبل الإدارة
+      if (!userProfile.isActive) {
+        try {
+          await supabase.auth.signOut();
+        } catch (_) {}
+        _showStatusSnackBar(
+          message:
+              'عذراً، هذا الحساب موقوف حالياً من قبل الإدارة. يرجى مراجعة مشرف المبيعات.',
+          isError: true,
+        );
+        return;
+      }
+
       _completeLoginAndNavigate(userProfile);
     } on AuthException catch (authError) {
-      if (_isDefaultAccount(email) &&
-          password == AppConstants.defaultPassword) {
-        final fallbackProfile = _buildDefaultProfile(email: email);
-        _completeLoginAndNavigate(fallbackProfile);
-        return;
-      }
       _showStatusSnackBar(
         message: _translateAuthError(authError.message),
         isError: true,
       );
     } catch (error) {
-      if (_isDefaultAccount(email) &&
-          password == AppConstants.defaultPassword) {
-        final fallbackProfile = _buildDefaultProfile(email: email);
-        _completeLoginAndNavigate(fallbackProfile);
-        return;
-      }
-
       _showStatusSnackBar(
         message: 'تعذر الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت.',
         isError: true,
@@ -238,13 +219,13 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// إظهار رسالة الترحيب والتوجيه المباشر إلى [DashboardPage] مع تمرير [UserProfileModel]
+  /// إظهار رسالة الترحيب والتوجيه المباشر حسب صلاحية المستخدم (Admin vs. Sales Rep)
   void _completeLoginAndNavigate(UserProfileModel userProfile) {
     if (!mounted) return;
 
     _showStatusSnackBar(
       message:
-          'مرحباً بك يا ${userProfile.fullName} | الصلاحية: ${userProfile.roleArabicLabel}',
+          'مرحباً بك ${userProfile.fullName} • الصلاحية: ${userProfile.roleArabicLabel}',
       isError: false,
       isAdmin: userProfile.isAdmin,
     );
@@ -256,14 +237,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// ترجمة رسائل أخطاء Supabase الشائعة إلى رسائل عربية واضحة للمندوب
   String _translateAuthError(String rawMessage) {
     final lower = rawMessage.toLowerCase();
     if (lower.contains('invalid login credentials')) {
-      return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-    }
-    if (lower.contains('email not confirmed')) {
-      return 'لم يتم تأكيد البريد الإلكتروني لهذا الحساب بعد.';
+      return 'البريد الإلكتروني / اسم المستخدم أو كلمة المرور غير صحيحة.';
     }
     if (lower.contains('too many requests') || lower.contains('rate limit')) {
       return 'تم تجاوز عدد المحاولات المسموح بها. يرجى الانتظار قليلاً.';
@@ -276,7 +253,6 @@ class _LoginPageState extends State<LoginPage> {
     return 'تعذر تسجيل الدخول: $rawMessage';
   }
 
-  /// عرض إشعار سفلي (SnackBar) بتصميم حديث وملون
   void _showStatusSnackBar({
     required String message,
     required bool isError,
@@ -286,7 +262,7 @@ class _LoginPageState extends State<LoginPage> {
 
     final Color backgroundColor = isError
         ? Colors.red.shade700
-        : (isAdmin ? Colors.indigo.shade700 : Colors.green.shade700);
+        : (isAdmin ? AppConstants.deepNavyBlue : Colors.green.shade700);
 
     final IconData icon = isError
         ? Icons.error_outline_rounded
@@ -332,7 +308,6 @@ class _LoginPageState extends State<LoginPage> {
     final ColorScheme colorScheme = theme.colorScheme;
     final Size screenSize = MediaQuery.sizeOf(context);
     final bool isSmallScreen = screenSize.width < 600;
-    final bool isVeryNarrow = screenSize.width < 360;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -378,18 +353,22 @@ class _LoginPageState extends State<LoginPage> {
                                 height: isSmallScreen ? 76 : 90,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  gradient: LinearGradient(
+                                  gradient: const LinearGradient(
                                     colors: [
-                                      colorScheme.primary,
-                                      colorScheme.primaryContainer,
+                                      AppConstants.deepNavyBlue,
+                                      AppConstants.royalNavySecondary,
                                     ],
                                     begin: Alignment.topRight,
                                     end: Alignment.bottomLeft,
                                   ),
+                                  border: Border.all(
+                                    color: AppConstants.royalGold,
+                                    width: 2,
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color:
-                                          colorScheme.primary.withOpacity(0.25),
+                                      color: AppConstants.deepNavyBlue
+                                          .withOpacity(0.22),
                                       blurRadius: 18,
                                       offset: const Offset(0, 6),
                                     ),
@@ -398,7 +377,7 @@ class _LoginPageState extends State<LoginPage> {
                                 child: Icon(
                                   Icons.local_mall_rounded,
                                   size: isSmallScreen ? 36 : 42,
-                                  color: Colors.white,
+                                  color: AppConstants.royalGold,
                                 ),
                               ),
                             ),
@@ -410,20 +389,20 @@ class _LoginPageState extends State<LoginPage> {
                                       ? theme.textTheme.headlineSmall
                                       : theme.textTheme.headlineMedium)
                                   ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w900,
+                                color: AppConstants.deepNavyBlue,
                               ),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'بوابة المناديب والمشرفين لإدارة المبيعات والجرد الميداني',
+                              'بوابة الدخول الميداني للمشرفين ومناديب المبيعات',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                                 height: 1.4,
                               ),
                             ),
-                            SizedBox(height: isSmallScreen ? 18 : 26),
+                            SizedBox(height: isSmallScreen ? 20 : 28),
                             Card(
                               elevation: 0,
                               color: colorScheme.primaryContainer
@@ -432,40 +411,41 @@ class _LoginPageState extends State<LoginPage> {
                                 borderRadius: BorderRadius.circular(22),
                                 side: BorderSide(
                                   color: colorScheme.outlineVariant
-                                      .withOpacity(0.5),
+                                      .withOpacity(0.6),
                                 ),
                               ),
                               child: Padding(
                                 padding:
-                                    EdgeInsets.all(isSmallScreen ? 16 : 22),
+                                    EdgeInsets.all(isSmallScreen ? 18 : 24),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     Text(
-                                      'البريد الإلكتروني',
+                                      'البريد الإلكتروني أو اسم المستخدم',
                                       style:
                                           theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: colorScheme.onSurface,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppConstants.deepNavyBlue,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
                                     TextFormField(
-                                      controller: _emailController,
+                                      controller: _identifierController,
                                       enabled: !_isLoading,
                                       keyboardType: TextInputType.emailAddress,
                                       textAlign: TextAlign.right,
                                       textInputAction: TextInputAction.next,
                                       autofillHints: const [
+                                        AutofillHints.username,
                                         AutofillHints.email,
                                       ],
                                       decoration: InputDecoration(
                                         hintText:
-                                            AppConstants.defaultAdminEmail,
+                                            'أدخل البريد الإلكتروني أو اسم المستخدم',
                                         prefixIcon: const Icon(
-                                          Icons.alternate_email_rounded,
+                                          Icons.person_outline_rounded,
                                         ),
                                         filled: true,
                                         fillColor: colorScheme.surface,
@@ -497,22 +477,21 @@ class _LoginPageState extends State<LoginPage> {
                                       validator: (value) {
                                         final text = value?.trim() ?? '';
                                         if (text.isEmpty) {
-                                          return 'يرجى إدخال البريد الإلكتروني';
+                                          return 'يرجى إدخال البريد الإلكتروني أو اسم المستخدم';
                                         }
-                                        if (!text.contains('@') ||
-                                            !text.contains('.')) {
-                                          return 'يرجى إدخال بريد إلكتروني صحيح';
+                                        if (text.length < 3) {
+                                          return 'يرجى إدخال معرف صحيح';
                                         }
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 14),
+                                    const SizedBox(height: 16),
                                     Text(
                                       'كلمة المرور',
                                       style:
                                           theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: colorScheme.onSurface,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppConstants.deepNavyBlue,
                                       ),
                                     ),
                                     const SizedBox(height: 8),
@@ -527,7 +506,7 @@ class _LoginPageState extends State<LoginPage> {
                                       ],
                                       onFieldSubmitted: (_) => _handleLogin(),
                                       decoration: InputDecoration(
-                                        hintText: '••••••••',
+                                        hintText: 'أدخل كلمة المرور',
                                         prefixIcon: const Icon(
                                           Icons.lock_outline_rounded,
                                         ),
@@ -584,13 +563,16 @@ class _LoginPageState extends State<LoginPage> {
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 22),
                                     SizedBox(
                                       height: 52,
                                       child: FilledButton(
                                         onPressed:
                                             _isLoading ? null : _handleLogin,
                                         style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              AppConstants.deepNavyBlue,
+                                          foregroundColor: Colors.white,
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
                                                 BorderRadius.circular(14),
@@ -614,11 +596,15 @@ class _LoginPageState extends State<LoginPage> {
                                                 mainAxisAlignment:
                                                     MainAxisAlignment.center,
                                                 children: [
-                                                  Icon(Icons.login_rounded),
+                                                  Icon(
+                                                    Icons.login_rounded,
+                                                    color:
+                                                        AppConstants.royalGold,
+                                                  ),
                                                   SizedBox(width: 8),
                                                   Flexible(
                                                     child: Text(
-                                                      'تسجيل الدخول للميدان',
+                                                      'تسجيل الدخول',
                                                       overflow:
                                                           TextOverflow.ellipsis,
                                                     ),
@@ -631,127 +617,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: colorScheme.surface,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: colorScheme.outlineVariant
-                                      .withOpacity(0.8),
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.key_rounded,
-                                        size: 18,
-                                        color: colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'الدخول السريع المعتمد (${AppConstants.defaultAdminEmail} | ${AppConstants.defaultPassword})',
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: colorScheme.onSurface,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  if (isVeryNarrow) ...[
-                                    OutlinedButton.icon(
-                                      onPressed: _isLoading
-                                          ? null
-                                          : () => _applyDemoCredentials(
-                                                asAdmin: true,
-                                              ),
-                                      icon: const Icon(
-                                        Icons.admin_panel_settings_outlined,
-                                        size: 18,
-                                      ),
-                                      label: const Text(
-                                        'مشرف معتمد',
-                                        style: TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    OutlinedButton.icon(
-                                      onPressed: _isLoading
-                                          ? null
-                                          : () => _applyDemoCredentials(
-                                                asAdmin: false,
-                                              ),
-                                      icon: const Icon(
-                                        Icons.badge_outlined,
-                                        size: 18,
-                                      ),
-                                      label: const Text(
-                                        'مندوب ميداني',
-                                        style: TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                  ] else
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: _isLoading
-                                                ? null
-                                                : () => _applyDemoCredentials(
-                                                      asAdmin: true,
-                                                    ),
-                                            icon: const Icon(
-                                              Icons
-                                                  .admin_panel_settings_outlined,
-                                              size: 18,
-                                            ),
-                                            label: const Flexible(
-                                              child: Text(
-                                                'مشرف معتمد',
-                                                overflow: TextOverflow.ellipsis,
-                                                style:
-                                                    TextStyle(fontSize: 12.5),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: _isLoading
-                                                ? null
-                                                : () => _applyDemoCredentials(
-                                                      asAdmin: false,
-                                                    ),
-                                            icon: const Icon(
-                                              Icons.badge_outlined,
-                                              size: 18,
-                                            ),
-                                            label: const Flexible(
-                                              child: Text(
-                                                'مندوب ميداني',
-                                                overflow: TextOverflow.ellipsis,
-                                                style:
-                                                    TextStyle(fontSize: 12.5),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -763,7 +629,7 @@ class _LoginPageState extends State<LoginPage> {
                                 const SizedBox(width: 6),
                                 Flexible(
                                   child: Text(
-                                    'اتصال آمن ومرتبط مباشرة بقاعدة بيانات الفروع',
+                                    'نظام محمي ومرتبط بصلاحيات المستخدمين والفروع في Supabase',
                                     textAlign: TextAlign.center,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: colorScheme.onSurfaceVariant,

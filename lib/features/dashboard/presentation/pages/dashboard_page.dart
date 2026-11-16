@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 import '../../../auth/data/models/user_profile_model.dart';
@@ -10,6 +11,7 @@ import '../../../inventory/presentation/pages/inventory_page.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../sales_rep/presentation/pages/sales_rep_field_page.dart';
+import '../../../sales_reps/presentation/pages/sales_reps_management_page.dart';
 
 /// الهيكل الرئيسي للتطبيق (Main Dashboard & Navigation Shell)
 /// مصمم بالهوية البصرية الملكية (Deep Navy Blue & Royal Gold) ويدعم العمل بدون إنترنت (Offline-First).
@@ -26,35 +28,152 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final GlobalKey<SalesRepsManagementPageState> _salesRepsKey =
+      GlobalKey<SalesRepsManagementPageState>();
+
   int _selectedIndex = 0;
   bool _isSigningOut = false;
 
-  late final UserProfileModel _currentUser;
-  late bool _useSalesRepQuickMode;
+  UserProfileModel? _currentUser;
+  bool _useSalesRepQuickMode = false;
+
+  // إحصائيات حية وحقيقية من Supabase (بدون أي أرقام مالية وهمية)
+  int _liveOrdersCount = 0;
+  int _livePendingOrdersCount = 0;
+  int _liveActiveRepsCount = 0;
+  int _liveTotalRepsCount = 0;
+  int _liveBranchesCount = 7;
 
   @override
   void initState() {
     super.initState();
     final authUser = Supabase.instance.client.auth.currentUser;
-    _currentUser = widget.userProfile ??
-        UserProfileModel(
-          id: authUser?.id ?? 'admin-jalap-001',
-          email: authUser?.email ?? 'admin@jalap.com',
-          fullName: 'مشرف نظام / مندوب معتمد',
-          role: 'admin',
-          branchId: 'الفرع الرئيسي - صنعاء',
-          isActive: true,
-        );
-    _useSalesRepQuickMode = _currentUser.isSales;
+    if (widget.userProfile != null) {
+      _currentUser = widget.userProfile;
+      _useSalesRepQuickMode = _currentUser!.isSales;
+      _refreshLiveDashboardMetrics();
+    } else if (authUser != null) {
+      _currentUser = UserProfileModel(
+        id: authUser.id,
+        email: authUser.email ?? '',
+        username: authUser.email ?? '',
+        fullName: 'مستخدم معتمد',
+        role: 'sales_rep',
+        branchId: 'فرع صنعاء',
+        isActive: true,
+      );
+      _useSalesRepQuickMode = true;
+      _refreshLiveDashboardMetrics();
+    } else {
+      // حماية المسارات الداخلية من الوصول المباشر بدون تسجيل دخول
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => const LoginPage(),
+            ),
+          );
+        }
+      });
+    }
+  }
+
+  /// جلب الأعداد الحقيقية المباشرة من جداول Supabase (الطلبات، المناديب النشطين، والفروع)
+  Future<void> _refreshLiveDashboardMetrics() async {
+    try {
+      final cachedOrders = OfflineSyncService.instance
+          .getCachedOrders()
+          .where((o) => !(o['id']?.toString().startsWith('ORD-10') ?? false))
+          .toList();
+      int ordersTotal = cachedOrders.length;
+      int ordersPending = cachedOrders
+          .where((o) => (o['status']?.toString() ?? 'pending') == 'pending')
+          .length;
+
+      int activeReps = 0;
+      int totalReps = 0;
+      int branchesCount = 7;
+
+      if (AppConstants.isSupabaseConfigured) {
+        final supabase = Supabase.instance.client;
+
+        // 1. العدد الفعلي للمناديب في جدول users_profiles
+        try {
+          final List<dynamic> repRows = await supabase
+              .from(AppConstants.tableUsersProfiles)
+              .select('id, is_active')
+              .eq('role', 'sales_rep');
+          totalReps = repRows.length;
+          activeReps = repRows
+              .where((r) => r is Map && (r['is_active'] == true))
+              .length;
+        } catch (e) {
+          debugPrint('Live reps count info: $e');
+        }
+
+        // 2. العدد الفعلي للطلبات في جدول orders
+        try {
+          final List<dynamic> orderRows = await supabase
+              .from(AppConstants.tableOrders)
+              .select('id, status');
+          if (orderRows.isNotEmpty || cachedOrders.isEmpty) {
+            ordersTotal = orderRows.length;
+            ordersPending = orderRows
+                .where(
+                  (o) =>
+                      o is Map &&
+                      (o['status']?.toString() ?? 'pending') == 'pending',
+                )
+                .length;
+          }
+        } catch (e) {
+          debugPrint('Live orders count info: $e');
+        }
+
+        // 3. العدد الفعلي للفروع في جدول branches
+        try {
+          final List<dynamic> branchRows = await supabase
+              .from(AppConstants.tableBranches)
+              .select('id');
+          if (branchRows.isNotEmpty) {
+            branchesCount = branchRows.length;
+          }
+        } catch (e) {
+          debugPrint('Live branches count info: $e');
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _liveOrdersCount = ordersTotal;
+          _livePendingOrdersCount = ordersPending;
+          _liveActiveRepsCount = activeReps;
+          _liveTotalRepsCount = totalReps;
+          _liveBranchesCount = branchesCount;
+        });
+      }
+    } catch (error) {
+      debugPrint('Dashboard metrics refresh warning: $error');
+    }
   }
 
   /// الانتقال السريع إلى قسم محدد عبر شريط التنقل السفلي
-  void _navigateToTab(int index, {String? actionLabel}) {
+  void _navigateToTab(
+    int index, {
+    String? actionLabel,
+    bool openAddRepModal = false,
+  }) {
     setState(() {
       _selectedIndex = index;
     });
 
-    if (actionLabel != null && mounted) {
+    _refreshLiveDashboardMetrics();
+
+    if (openAddRepModal) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _salesRepsKey.currentState?.openAddOrEditRepModal();
+      });
+    } else if (actionLabel != null && mounted) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -115,102 +234,137 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_useSalesRepQuickMode) {
-      return SalesRepFieldPage(
-        userProfile: _currentUser,
-        isSigningOut: _isSigningOut,
-        onSignOut: _handleSignOut,
-        onSwitchToFullDashboard: () {
-          setState(() => _useSalesRepQuickMode = false);
-        },
+    final user = _currentUser;
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    if (_useSalesRepQuickMode) {
+      return SalesRepFieldPage(
+        userProfile: user,
+        isSigningOut: _isSigningOut,
+        onSignOut: _handleSignOut,
+        onSwitchToFullDashboard: user.isAdmin
+            ? () {
+                setState(() => _useSalesRepQuickMode = false);
+              }
+            : null,
+      );
+    }
+
+    final bool isAdmin = user.isAdmin;
+
     final List<Widget> pages = [
       _HomeTabView(
-        userProfile: _currentUser,
+        userProfile: user,
         isSigningOut: _isSigningOut,
         onSignOut: _handleSignOut,
         onQuickActionSelect: _navigateToTab,
+        liveOrdersCount: _liveOrdersCount,
+        livePendingOrdersCount: _livePendingOrdersCount,
+        liveActiveRepsCount: _liveActiveRepsCount,
+        liveTotalRepsCount: _liveTotalRepsCount,
+        liveBranchesCount: _liveBranchesCount,
       ),
       InventoryPage(
-        currentUserId: _currentUser.id,
-        currentBranchId: _currentUser.branchId,
+        currentUserId: user.id,
+        currentBranchId: user.branchId,
       ),
       OrdersPage(
-        currentUserId: _currentUser.id,
-        currentBranchId: _currentUser.branchId,
+        currentUserId: user.id,
+        currentBranchId: user.branchId,
       ),
       CustomersPage(
-        currentBranchId: _currentUser.branchId,
+        currentBranchId: user.branchId,
       ),
+      if (isAdmin)
+        SalesRepsManagementPage(
+          key: _salesRepsKey,
+          onRepsChanged: _refreshLiveDashboardMetrics,
+        ),
       ProfilePage(
-        userProfile: _currentUser,
+        userProfile: user,
         isSigningOut: _isSigningOut,
         onSignOut: _handleSignOut,
       ),
     ];
+
+    final List<NavigationDestination> destinations = [
+      const NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(
+          Icons.dashboard_rounded,
+          color: AppConstants.deepNavyBlue,
+        ),
+        label: 'الرئيسية',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.inventory_2_outlined),
+        selectedIcon: Icon(
+          Icons.inventory_2_rounded,
+          color: AppConstants.deepNavyBlue,
+        ),
+        label: 'الأصناف والجرد',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.receipt_long_outlined),
+        selectedIcon: Icon(
+          Icons.receipt_long_rounded,
+          color: AppConstants.deepNavyBlue,
+        ),
+        label: 'الطلبات',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.people_alt_outlined),
+        selectedIcon: Icon(
+          Icons.people_alt_rounded,
+          color: AppConstants.deepNavyBlue,
+        ),
+        label: 'العملاء',
+      ),
+      if (isAdmin)
+        const NavigationDestination(
+          icon: Icon(Icons.supervisor_account_outlined),
+          selectedIcon: Icon(
+            Icons.supervisor_account_rounded,
+            color: AppConstants.deepNavyBlue,
+          ),
+          label: 'المناديب',
+        ),
+      const NavigationDestination(
+        icon: Icon(Icons.person_outline_rounded),
+        selectedIcon: Icon(
+          Icons.person_rounded,
+          color: AppConstants.deepNavyBlue,
+        ),
+        label: 'الحساب',
+      ),
+    ];
+
+    final int safeIndex = _selectedIndex.clamp(0, pages.length - 1);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: AppConstants.cleanLightGrey,
         body: IndexedStack(
-          index: _selectedIndex,
+          index: safeIndex,
           children: pages,
         ),
         bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedIndex,
+          selectedIndex: safeIndex,
           onDestinationSelected: (int index) {
             setState(() => _selectedIndex = index);
+            _refreshLiveDashboardMetrics();
           },
           height: 72,
           elevation: 4,
           backgroundColor: Colors.white,
           indicatorColor: AppConstants.softRoyalGold,
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined),
-              selectedIcon: Icon(
-                Icons.dashboard_rounded,
-                color: AppConstants.deepNavyBlue,
-              ),
-              label: 'الرئيسية',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.inventory_2_outlined),
-              selectedIcon: Icon(
-                Icons.inventory_2_rounded,
-                color: AppConstants.deepNavyBlue,
-              ),
-              label: 'الأصناف والجرد',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_outlined),
-              selectedIcon: Icon(
-                Icons.receipt_long_rounded,
-                color: AppConstants.deepNavyBlue,
-              ),
-              label: 'الطلبات',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_alt_outlined),
-              selectedIcon: Icon(
-                Icons.people_alt_rounded,
-                color: AppConstants.deepNavyBlue,
-              ),
-              label: 'العملاء',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(
-                Icons.person_rounded,
-                color: AppConstants.deepNavyBlue,
-              ),
-              label: 'الحساب',
-            ),
-          ],
+          destinations: destinations,
         ),
       ),
     );
@@ -218,28 +372,41 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 // =============================================================================
-// شاشة التبويب الرئيسي (Home Tab View) - الهوية الملكية + دعم Offline-First
+// شاشة التبويب الرئيسي (Home Tab View) - إحصائيات حية من Supabase بدون أرقام وهمية
 // =============================================================================
 
 class _HomeTabView extends StatelessWidget {
   final UserProfileModel userProfile;
   final bool isSigningOut;
   final VoidCallback onSignOut;
-  final void Function(int tabIndex, {String? actionLabel}) onQuickActionSelect;
+  final void Function(
+    int tabIndex, {
+    String? actionLabel,
+    bool openAddRepModal,
+  }) onQuickActionSelect;
+  final int liveOrdersCount;
+  final int livePendingOrdersCount;
+  final int liveActiveRepsCount;
+  final int liveTotalRepsCount;
+  final int liveBranchesCount;
 
   const _HomeTabView({
     required this.userProfile,
     required this.isSigningOut,
     required this.onSignOut,
     required this.onQuickActionSelect,
+    required this.liveOrdersCount,
+    required this.livePendingOrdersCount,
+    required this.liveActiveRepsCount,
+    required this.liveTotalRepsCount,
+    required this.liveBranchesCount,
   });
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final OfflineSyncService offlineSync = OfflineSyncService.instance;
-    final String branchCurrency =
-        AppConstants.currencyForBranch(userProfile.branchId);
+    final int catalogCount = AlRabieCatalog.items.length;
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -258,7 +425,6 @@ class _HomeTabView extends StatelessWidget {
             ),
           ),
           actions: [
-            // شارة الاتصال التفاعلية (متصل / يعمل محلياً Offline) مع إمكانية التبديل للتجربة
             ValueListenableBuilder<bool>(
               valueListenable: offlineSync.isOnlineNotifier,
               builder: (context, isOnline, _) {
@@ -428,7 +594,7 @@ class _HomeTabView extends StatelessWidget {
                           child: Text(
                             pendingCount > 0
                                 ? 'نمط Offline-First نشط • توجد ($pendingCount) عمليات محفوظة في طابور المزامنة (Sync Queue) جاهزة للرفع'
-                                : 'نمط Offline-First نشط • جميع أصناف كتالوج الربيع (ORDER) والعملاء والطلبات محفوظة محلياً للعمل بدون إنترنت',
+                                : 'نمط Offline-First نشط • جميع أصناف كتالوج الربيع ($catalogCount صنفاً) والعملاء والمناديب مرتبطة مباشرة بـ Supabase',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: AppConstants.deepNavyBlue,
                               fontWeight: FontWeight.w700,
@@ -446,7 +612,7 @@ class _HomeTabView extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'ملخص الأداء الميداني',
+                      'المؤشرات التشغيلية المباشرة (Supabase Live)',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: AppConstants.deepNavyBlue,
@@ -461,9 +627,9 @@ class _HomeTabView extends StatelessWidget {
                       color: AppConstants.softRoyalGold,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'كتالوج الربيع الرسمي (62 صنفاً)',
-                      style: TextStyle(
+                    child: Text(
+                      '$liveBranchesCount فروع معتمدة',
+                      style: const TextStyle(
                         color: AppConstants.deepNavyBlue,
                         fontWeight: FontWeight.bold,
                         fontSize: 11.5,
@@ -473,13 +639,16 @@ class _HomeTabView extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              _PrimarySalesStatCard(
-                todaySales: '62 صنفاً معتمداً',
-                monthSales: '24 صورة رسمية',
-                growthPercentage: 'ORDER',
+              _PrimaryOperationalStatCard(
+                catalogCount: '$catalogCount / $catalogCount',
+                activeRepsText:
+                    '$liveActiveRepsCount / $liveTotalRepsCount مندوب نشط',
+                badgeText: 'ORDER',
                 onTap: () => onQuickActionSelect(
-                  1,
-                  actionLabel: 'كتالوج وجرد أصناف الربيع',
+                  userProfile.isAdmin ? 4 : 1,
+                  actionLabel: userProfile.isAdmin
+                      ? 'إدارة المناديب وصلاحيات الفروع'
+                      : 'كتالوج وجرد أصناف الربيع',
                 ),
               ),
               const SizedBox(height: 12),
@@ -487,10 +656,12 @@ class _HomeTabView extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SecondaryStatCard(
-                      title: 'طلبات قيد الانتظار',
-                      value: '6 طلبات',
-                      subtitle: 'محفوظة وجاهزة للتسليم',
-                      icon: Icons.pending_actions_rounded,
+                      title: 'إجمالي الطلبات المسجلة',
+                      value: '$liveOrdersCount طلب',
+                      subtitle: livePendingOrdersCount > 0
+                          ? 'منها $livePendingOrdersCount قيد المتابعة'
+                          : 'مرتبطة مباشرة بقاعدة البيانات',
+                      icon: Icons.receipt_long_rounded,
                       accentColor: AppConstants.deepNavyBlue,
                       backgroundColor: Colors.white,
                       borderColor: AppConstants.royalGold,
@@ -502,8 +673,8 @@ class _HomeTabView extends StatelessWidget {
                   Expanded(
                     child: _SecondaryStatCard(
                       title: 'كتالوج أصناف الربيع',
-                      value: '62 / 62',
-                      subtitle: 'الأصناف المعتمدة (ORDER)',
+                      value: '$catalogCount / $catalogCount',
+                      subtitle: 'الأصناف الرسمية المعتمدة',
                       icon: Icons.fact_check_rounded,
                       accentColor: Colors.teal.shade800,
                       backgroundColor: Colors.white,
@@ -526,7 +697,7 @@ class _HomeTabView extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'تعمل بكفاءة تامة بيد واحدة وحتى في حال انقطاع الاتصال بالإنترنت',
+                'إجراءات سريعة ومباشرة لإدارة الجرد والطلبات والمناديب والعملاء',
                 style: TextStyle(
                   fontSize: 12.5,
                   color: Colors.black54,
@@ -554,6 +725,20 @@ class _HomeTabView extends StatelessWidget {
                   actionLabel: 'إدارة الطلبات والمبيعات',
                 ),
               ),
+              if (userProfile.isAdmin) ...[
+                const SizedBox(height: 12),
+                _QuickActionTile(
+                  title: 'إضافة مندوب',
+                  subtitle:
+                      'إنشاء حساب مندوب مبيعات جديد وتخصيص فرعه وصلاحياته في (users_profiles)',
+                  icon: Icons.supervisor_account_rounded,
+                  onTap: () => onQuickActionSelect(
+                    4,
+                    actionLabel: 'إدارة المناديب وصلاحيات الفروع',
+                    openAddRepModal: true,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               _QuickActionTile(
                 title: 'إضافة عميل',
@@ -618,16 +803,16 @@ class _HeaderChip extends StatelessWidget {
   }
 }
 
-class _PrimarySalesStatCard extends StatelessWidget {
-  final String todaySales;
-  final String monthSales;
-  final String growthPercentage;
+class _PrimaryOperationalStatCard extends StatelessWidget {
+  final String catalogCount;
+  final String activeRepsText;
+  final String badgeText;
   final VoidCallback onTap;
 
-  const _PrimarySalesStatCard({
-    required this.todaySales,
-    required this.monthSales,
-    required this.growthPercentage,
+  const _PrimaryOperationalStatCard({
+    required this.catalogCount,
+    required this.activeRepsText,
+    required this.badgeText,
     required this.onTap,
   });
 
@@ -666,7 +851,7 @@ class _PrimarySalesStatCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
-                      Icons.trending_up_rounded,
+                      Icons.analytics_rounded,
                       color: AppConstants.deepNavyBlue,
                       size: 24,
                     ),
@@ -674,7 +859,7 @@ class _PrimarySalesStatCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'مبيعات اليوم / الشهر',
+                      'حالة الكتالوج وفريق المبيعات',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -690,7 +875,7 @@ class _PrimarySalesStatCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      growthPercentage,
+                      badgeText,
                       textDirection: TextDirection.ltr,
                       style: const TextStyle(
                         color: AppConstants.deepNavyBlue,
@@ -709,7 +894,7 @@ class _PrimarySalesStatCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'مبيعات اليوم',
+                          'أصناف الربيع المعتمدة',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -717,7 +902,8 @@ class _PrimarySalesStatCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          todaySales,
+                          catalogCount,
+                          textDirection: TextDirection.ltr,
                           style: const TextStyle(
                             color: AppConstants.royalGold,
                             fontSize: 20,
@@ -738,7 +924,7 @@ class _PrimarySalesStatCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'إجمالي الشهر',
+                          'المناديب المسجلون',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -746,10 +932,10 @@ class _PrimarySalesStatCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          monthSales,
+                          activeRepsText,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
