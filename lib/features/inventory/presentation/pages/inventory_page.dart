@@ -999,7 +999,7 @@ class _InventoryPageState extends State<InventoryPage> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // رأس البطاقة (الصورة + الكود + الاسم + شارة الحالة)
+                                    // رأس البطاقة (صورة الصنف + رقم الصنف SKU + اسم الصنف فقط)
                                     InkWell(
                                       onTap: () => _openAuditEntrySheet(
                                         initialProduct: product,
@@ -1019,53 +1019,33 @@ class _InventoryPageState extends State<InventoryPage> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: AppConstants
-                                                            .deepNavyBlue,
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(8),
-                                                      ),
-                                                      child: Text(
-                                                        product.code,
-                                                        textDirection:
-                                                            TextDirection.ltr,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          color: AppConstants
-                                                              .royalGold,
-                                                        ),
-                                                      ),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppConstants
+                                                        .deepNavyBlue,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                  ),
+                                                  child: Text(
+                                                    product.code,
+                                                    textDirection:
+                                                        TextDirection.ltr,
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      color: AppConstants
+                                                          .royalGold,
                                                     ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        product.category,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          fontSize: 11.5,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: colorScheme
-                                                              .onSurfaceVariant,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
+                                                  ),
                                                 ),
-                                                const SizedBox(height: 5),
+                                                const SizedBox(height: 6),
                                                 Text(
                                                   product.name,
                                                   style: const TextStyle(
@@ -1126,40 +1106,6 @@ class _InventoryPageState extends State<InventoryPage> {
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-
-                                    // التعبئة والسعر بالعملة الديناميكية (ر.ي)
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.inventory_2_outlined,
-                                          size: 14,
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            product.unit,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color:
-                                                  colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          '${AppConstants.formatCurrency(product.cartonPrice, branch: widget.currentBranchId)} / كرتون',
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w900,
-                                            color: AppConstants.deepNavyBlue,
-                                          ),
-                                        ),
-                                      ],
                                     ),
                                     const Divider(height: 20),
 

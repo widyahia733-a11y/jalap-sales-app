@@ -73,12 +73,18 @@ extension OrderStatusExtension on OrderStatus {
 
 /// عنصر سطر داخل الفاتورة / الطلب
 class OrderLineItem {
+  final String code;
   final String productName;
+  final String category;
+  final String imageAsset;
   final double unitPrice;
   int quantity;
 
   OrderLineItem({
+    required this.code,
     required this.productName,
+    required this.category,
+    required this.imageAsset,
     required this.unitPrice,
     this.quantity = 0,
   });
@@ -377,11 +383,14 @@ class _OrdersPageState extends State<OrdersPage> {
   Future<void> _openCreateOrderSheet() async {
     String selectedCustomer = _availableCustomers.first;
     final List<OrderLineItem> catalogLines = List<OrderLineItem>.generate(
-      AlRabieCatalog.allProducts.length,
+      AlRabieCatalog.items.length,
       (idx) {
-        final p = AlRabieCatalog.allProducts[idx];
+        final p = AlRabieCatalog.items[idx];
         return OrderLineItem(
-          productName: '[${p.code}] ${p.name}',
+          code: p.code,
+          productName: p.name,
+          category: p.category,
+          imageAsset: p.imageAsset,
           unitPrice: p.cartonPrice,
           quantity: idx == 0 ? 2 : (idx == 1 ? 1 : 0),
         );
@@ -433,7 +442,7 @@ class _OrdersPageState extends State<OrdersPage> {
               final newOrderNum = 'INV-${202682 + _orders.length}';
               final selectedSummaries = catalogLines
                   .where((l) => l.quantity > 0)
-                  .map((l) => '${l.productName} (${l.quantity} كرتون)')
+                  .map((l) => '[${l.code}] ${l.productName} (${l.quantity} كرتون)')
                   .toList();
 
               final newOrder = FieldOrderModel(
@@ -486,8 +495,8 @@ class _OrdersPageState extends State<OrdersPage> {
                         textDirection: TextDirection.rtl,
                         child: Text(
                           syncedOnline
-                              ? 'تم اعتماد ومزامنة الفاتورة ($newOrderNum) بإجمالي ${AppConstants.formatCurrency(grandTotal, branch: widget.currentBranchId)}'
-                              : 'تم اعتماد الفاتورة ($newOrderNum) محلياً وحفظها في طابور المزامنة (${AppConstants.formatCurrency(grandTotal, branch: widget.currentBranchId)})',
+                              ? 'تم اعتماد ومزامنة الطلب ($newOrderNum) بنجاح ($totalCartons كرتون)'
+                              : 'تم اعتماد الطلب ($newOrderNum) محلياً وحفظه في طابور المزامنة ($totalCartons كرتون)',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -532,15 +541,15 @@ class _OrdersPageState extends State<OrdersPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'إنشاء طلب توريد / فاتورة جديدة',
+                               Text(
+                                'إنشاء طلب توريد أصناف الربيع',
                                 style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
                               Text(
-                                'يعمل محلياً وفورياً مع حساب الإجمالي بالعملة المعتمدة (ر.ي)',
+                                'يعرض اسم الصنف ورقم الصنف الرسمي (SKU) وصورة الصنف مباشرة',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.black54,
@@ -604,25 +613,46 @@ class _OrdersPageState extends State<OrdersPage> {
                               ),
                               child: Row(
                                 children: [
+                                  AlRabieProductThumbnail(
+                                    imageAsset: line.imageAsset,
+                                    category: line.category,
+                                    size: 44,
+                                  ),
+                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppConstants.deepNavyBlue,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            line.code,
+                                            textDirection: TextDirection.ltr,
+                                            style: const TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppConstants.royalGold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
                                         Text(
                                           line.productName,
                                           style: TextStyle(
                                             fontWeight: isSelected
                                                 ? FontWeight.bold
-                                                : FontWeight.w500,
+                                                : FontWeight.w600,
                                             fontSize: 13.5,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${AppConstants.formatCurrency(line.unitPrice, branch: widget.currentBranchId)} / كرتون',
-                                          style: TextStyle(
-                                            fontSize: 11.5,
-                                            color: colorScheme.onSurfaceVariant,
+                                            color: AppConstants.deepNavyBlue,
                                           ),
                                         ),
                                       ],
@@ -691,33 +721,18 @@ class _OrdersPageState extends State<OrdersPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'إجمالي الكميات: $totalCartons كرتون',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: AppConstants.deepNavyBlue,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const Text(
-                                'الإجمالي النهائي للفاتورة:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
+                          const Text(
+                            'إجمالي الكميات المطلوبة:',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppConstants.deepNavyBlue,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           Text(
-                            AppConstants.formatCurrency(
-                              grandTotal,
-                              branch: widget.currentBranchId,
-                            ),
+                            '$totalCartons كرتون',
                             style: const TextStyle(
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
                               color: AppConstants.deepNavyBlue,
                             ),
@@ -821,13 +836,10 @@ class _OrdersPageState extends State<OrdersPage> {
                     children: [
                       Expanded(
                         child: _OrderMetricTile(
-                          title: 'إجمالي المبيعات',
-                          value: AppConstants.formatCurrency(
-                            totalRevenue,
-                            branch: widget.currentBranchId,
-                          ),
+                          title: 'إجمالي الطلبات',
+                          value: '${_orders.length} طلب',
                           color: Colors.indigo,
-                          icon: Icons.payments_outlined,
+                          icon: Icons.inventory_2_outlined,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1057,7 +1069,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'إجمالي الفاتورة',
+                                              'إجمالي الكميات المطلوبة',
                                               style: TextStyle(
                                                 fontSize: 11.5,
                                                 color: colorScheme
@@ -1065,12 +1077,9 @@ class _OrdersPageState extends State<OrdersPage> {
                                               ),
                                             ),
                                             Text(
-                                              AppConstants.formatCurrency(
-                                                order.totalAmount,
-                                                branch: order.branchName,
-                                              ),
+                                              '${order.itemsCount} كرتون',
                                               style: const TextStyle(
-                                                fontSize: 18,
+                                                fontSize: 17,
                                                 fontWeight: FontWeight.w900,
                                                 color:
                                                     AppConstants.deepNavyBlue,

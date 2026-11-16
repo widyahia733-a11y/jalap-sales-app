@@ -452,15 +452,10 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
         },
       );
 
-      final formattedTotal = AppConstants.formatCurrency(
-        totalAmount,
-        branch: branchName,
-      );
-
       if (mounted) {
         setState(() {
           _lastOrderSubmissionBanner =
-              'تم إرسال الطلب ($orderNumber) للفرع • التاجر: $_selectedMerchant • $totalCartons كرتون • الإجمالي: $formattedTotal';
+              'تم إرسال الطلب ($orderNumber) للفرع • التاجر: $_selectedMerchant • الإجمالي: $totalCartons كرتون';
           for (final p in _catalogProducts) {
             _orderCartons[p.id] = 0;
             _orderCartonControllers[p.id]?.text = '0';
@@ -489,8 +484,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                     Expanded(
                       child: Text(
                         syncedOnline
-                            ? 'تم إرسال طلب أصناف الربيع ($orderNumber) للفرع بنجاح ($formattedTotal)'
-                            : 'تم حفظ طلب البضاعة ($orderNumber) محلياً وسيتم إرساله للفرع فور توفر الشبكة ($formattedTotal)',
+                            ? 'تم إرسال طلب أصناف الربيع ($orderNumber) للفرع بنجاح ($totalCartons كرتون)'
+                            : 'تم حفظ طلب البضاعة ($orderNumber) محلياً وسيتم إرساله للفرع فور توفر الشبكة ($totalCartons كرتون)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -972,19 +967,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  product.category,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ),
+                              const Spacer(),
                               if (isEntered)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1006,21 +989,13 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
                           Text(
                             product.name,
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
                               color: AppConstants.deepNavyBlue,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            product.unit,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: Colors.black54,
                             ),
                           ),
                         ],
@@ -1114,7 +1089,6 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
         final product = products[index - 1];
         final qty = _orderCartons[product.id] ?? 0;
         final isSelected = qty > 0;
-        final lineTotal = qty * product.cartonPrice;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
@@ -1141,43 +1115,26 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppConstants.deepNavyBlue,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              product.code,
-                              textDirection: TextDirection.ltr,
-                              style: const TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.bold,
-                                color: AppConstants.royalGold,
-                              ),
-                            ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppConstants.deepNavyBlue,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          product.code,
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: AppConstants.royalGold,
                           ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              product.category,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 5),
                       Text(
                         product.name,
                         style: const TextStyle(
@@ -1186,26 +1143,6 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                           color: AppConstants.deepNavyBlue,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '${AppConstants.formatCurrency(product.cartonPrice, branch: widget.userProfile.branchId)} / كرتون',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      if (isSelected) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          'الإجمالي: ${AppConstants.formatCurrency(lineTotal, branch: widget.userProfile.branchId)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.green.shade800,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -1319,11 +1256,6 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   /// الشريط السفلي لإرسال طلب البضاعة للفرع
   Widget _buildOrderBottomActionBar() {
-    final formattedTotal = AppConstants.formatCurrency(
-      _totalOrderAmount,
-      branch: widget.userProfile.branchId,
-    );
-
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: BoxDecoration(
@@ -1345,7 +1277,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '$_orderedDistinctProductsCount أصناف ($_totalOrderCartons كرتون)',
+                  'الأصناف المحددة: $_orderedDistinctProductsCount',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.black54,
@@ -1353,7 +1285,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                   ),
                 ),
                 Text(
-                  formattedTotal,
+                  '$_totalOrderCartons كرتون مطلوب',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,

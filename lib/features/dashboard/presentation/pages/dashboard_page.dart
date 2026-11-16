@@ -383,8 +383,8 @@ class _HomeTabView extends StatelessWidget {
                                   icon: Icons.storefront_outlined,
                                   label: userProfile.branchId != null &&
                                           userProfile.branchId!.isNotEmpty
-                                      ? '${userProfile.branchId!} ($branchCurrency)'
-                                      : 'الفرع الرئيسي ($branchCurrency)',
+                                      ? userProfile.branchId!
+                                      : 'الفرع الرئيسي',
                                 ),
                               ],
                             ),
@@ -446,7 +446,7 @@ class _HomeTabView extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'ملخص الأداء الميداني ($branchCurrency)',
+                      'ملخص الأداء الميداني',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: AppConstants.deepNavyBlue,
@@ -461,9 +461,9 @@ class _HomeTabView extends StatelessWidget {
                       color: AppConstants.softRoyalGold,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text(
-                      'العملة: ${AppConstants.defaultCurrencyName} ($branchCurrency)',
-                      style: const TextStyle(
+                    child: const Text(
+                      'كتالوج الربيع الرسمي (62 صنفاً)',
+                      style: TextStyle(
                         color: AppConstants.deepNavyBlue,
                         fontWeight: FontWeight.bold,
                         fontSize: 11.5,
@@ -474,16 +474,13 @@ class _HomeTabView extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               _PrimarySalesStatCard(
-                todaySales: AppConstants.formatCurrency(
-                  485000,
-                  branch: userProfile.branchId,
+                todaySales: '62 صنفاً معتمداً',
+                monthSales: '24 صورة رسمية',
+                growthPercentage: 'ORDER',
+                onTap: () => onQuickActionSelect(
+                  1,
+                  actionLabel: 'كتالوج وجرد أصناف الربيع',
                 ),
-                monthSales: AppConstants.formatCurrency(
-                  11240000,
-                  branch: userProfile.branchId,
-                ),
-                growthPercentage: '+14.2%',
-                onTap: () => onQuickActionSelect(2, actionLabel: 'الطلبات'),
               ),
               const SizedBox(height: 12),
               Row(
@@ -550,7 +547,7 @@ class _HomeTabView extends StatelessWidget {
               _QuickActionTile(
                 title: 'طلب جديد',
                 subtitle:
-                    'إصدار فاتورة مبيعات جديدة بالعملة المعتمدة ($branchCurrency) وحفظها فوراً',
+                    'إرسال طلب توريد بضاعة لأصناف الربيع المعتمدة للفرع وحفظه فوراً',
                 icon: Icons.add_shopping_cart_rounded,
                 onTap: () => onQuickActionSelect(
                   2,
