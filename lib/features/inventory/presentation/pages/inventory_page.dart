@@ -41,13 +41,22 @@ class ProductItemModel {
   }
 
   factory ProductItemModel.fromJson(Map<String, dynamic> json, int index) {
-    final code = json['code']?.toString() ??
+    final rawCode = json['code']?.toString() ??
         json['sku']?.toString() ??
-        'JLP-${(3001 + index)}';
+        json['item_code']?.toString();
+    final matchedCatalogItem = AlRabieCatalog.findBySkuOrId(
+      rawCode ?? json['id']?.toString(),
+    );
+    if (matchedCatalogItem != null) {
+      return ProductItemModel.fromAlRabie(matchedCatalogItem);
+    }
+
+    final code = rawCode ?? 'JLP-${(3001 + index)}';
     final name =
         (json['name'] ?? json['product_name'] ?? 'صنف الربيع ${index + 1}')
             .toString();
     final imageAsset = json['image_asset']?.toString() ??
+        json['image_url']?.toString() ??
         AlRabieCatalog.resolveImageByCodeOrName(code, name);
 
     return ProductItemModel(
@@ -192,6 +201,10 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   void initState() {
     super.initState();
+    // تحميل فوري ومضمون (Local-First) لجميع الأصناف الـ 62 من AlRabieCatalog.items مباشرة في initState
+    _allProducts = AlRabieCatalog.items
+        .map(ProductItemModel.fromAlRabie)
+        .toList();
     _initializeInventoryData();
   }
 
@@ -201,74 +214,87 @@ class _InventoryPageState extends State<InventoryPage> {
     super.dispose();
   }
 
-  /// تهيئة قائمة أصناف الربيع المعتمدة مع دعم التخزين المحلي (Local Cache) والمزامنة
+  /// تهيئة قائمة أصناف الربيع المعتمدة (62 صنفاً) ودمج كميات المخزون حسب SKU دون السماح لأي استعلام فارغ بمسح القائمة
   Future<void> _initializeInventoryData() async {
-    setState(() => _isLoading = true);
-
-    final List<ProductItemModel> officialCatalogProducts = AlRabieCatalog
-        .allProducts
+    // 1. ضمان بقاء الأصناف الـ 62 الرسمية من AlRabieCatalog.items مع صورها في جميع الأحوال
+    final List<ProductItemModel> officialCatalogProducts = AlRabieCatalog.items
         .map(ProductItemModel.fromAlRabie)
         .toList();
 
-    final cachedProductsJson = _offlineSync.getCachedProducts();
-    if (cachedProductsJson.length >= officialCatalogProducts.length) {
-      _allProducts = List<ProductItemModel>.generate(
-        cachedProductsJson.length,
-        (i) => ProductItemModel.fromJson(cachedProductsJson[i], i),
-      );
+    if (mounted) {
+      setState(() {
+        _allProducts = officialCatalogProducts;
+        _isLoading = false;
+      });
     } else {
       _allProducts = officialCatalogProducts;
-      await _offlineSync.cacheProducts(
-        _allProducts.map((p) => p.toJson()).toList(),
-      );
+      _isLoading = false;
     }
 
-    // استرجاع سجلات الجرد المخزنة محلياً
+    await _offlineSync.cacheProducts(
+      _allProducts.map((p) => p.toJson()).toList(),
+    );
+
+    // 2. استرجاع ودمج سجلات الجرد المحلية حسب SKU أو معرف الصنف (مع افتراض 0 للأصناف غير المجرودة)
     final cachedAuditsMap = _offlineSync.getCachedInventoryAudits();
     if (cachedAuditsMap.isNotEmpty) {
-      _auditRecords.clear();
-      cachedAuditsMap.forEach((productId, map) {
-        _auditRecords[productId] = InventoryAuditEntry.fromJson(map);
-      });
-    } else if (_auditRecords.isEmpty) {
-      for (int i = 0; i < _allProducts.length && i < 24; i++) {
-        final item = _allProducts[i];
-        _auditRecords[item.id] = InventoryAuditEntry(
-          productId: item.id,
-          cartonCount: 18 + (i % 12),
-          packCount: (i * 2) % item.packPerCarton,
-          damagedCount: i % 9 == 0 ? 1 : 0,
-          returnedCount: i % 7 == 0 ? 2 : 0,
-          notes: 'جرد دوري معتمد - أصناف الربيع (${item.code})',
-          auditedAt: DateTime.now().subtract(Duration(hours: i + 1)),
+      cachedAuditsMap.forEach((key, map) {
+        final matched = AlRabieCatalog.findBySkuOrId(
+          map['sku']?.toString() ??
+              map['item_code']?.toString() ??
+              map['product_id']?.toString() ??
+              key,
         );
-      }
-      await _persistAuditsLocally();
+        if (matched != null) {
+          final entry = InventoryAuditEntry.fromJson(map);
+          _auditRecords[matched.id] = InventoryAuditEntry(
+            productId: matched.id,
+            cartonCount: entry.cartonCount,
+            packCount: entry.packCount,
+            damagedCount: entry.damagedCount,
+            returnedCount: entry.returnedCount,
+            notes: entry.notes,
+            auditedAt: entry.auditedAt,
+          );
+        }
+      });
     }
 
-    // محاولة التحديث من Supabase إذا كان متصلاً ويحتوي على الكتالوج الكامل
+    // 3. مزامنة الكتالوج الرسمي مع Supabase ودمج أي كميات جرد واردة من السحابة حسب SKU دون المساس بالقائمة المعروضة
     if (AppConstants.isSupabaseConfigured) {
       try {
+        await _offlineSync.syncOfficialCatalogToSupabase();
+
         final supabase = Supabase.instance.client;
-        final List<dynamic> rows = await supabase
-            .from(AppConstants.tableProducts)
+        final List<dynamic> auditRows = await supabase
+            .from(AppConstants.tableInventoryAudits)
             .select()
             .limit(100);
 
-        if (rows.length >= officialCatalogProducts.length) {
-          final fetched = <ProductItemModel>[];
-          for (int i = 0; i < rows.length; i++) {
-            fetched.add(ProductItemModel.fromJson(rows[i], i));
-          }
-          if (fetched.isNotEmpty) {
-            _allProducts = fetched;
-            await _offlineSync.cacheProducts(
-              _allProducts.map((p) => p.toJson()).toList(),
+        for (final raw in auditRows) {
+          if (raw is Map<String, dynamic>) {
+            final matched = AlRabieCatalog.findBySkuOrId(
+              raw['sku']?.toString() ??
+                  raw['item_code']?.toString() ??
+                  raw['product_id']?.toString(),
             );
+            if (matched != null) {
+              final remoteEntry = InventoryAuditEntry.fromJson(raw);
+              _auditRecords[matched.id] = InventoryAuditEntry(
+                productId: matched.id,
+                cartonCount: remoteEntry.cartonCount,
+                packCount: remoteEntry.packCount,
+                damagedCount: remoteEntry.damagedCount,
+                returnedCount: remoteEntry.returnedCount,
+                notes: remoteEntry.notes,
+                auditedAt: remoteEntry.auditedAt,
+              );
+            }
           }
         }
+        await _persistAuditsLocally();
       } catch (error) {
-        debugPrint('Inventory offline mode active: $error');
+        debugPrint('Inventory local-first catalog active: $error');
       }
     }
 
@@ -331,14 +357,18 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   List<ProductItemModel> get _filteredProducts {
+    final normalizedQuery = AlRabieCatalog.normalizeArabicSearch(_searchQuery);
     return _allProducts.where((product) {
       final matchesCategory =
           _selectedCategory == 'الكل' || product.category == _selectedCategory;
-      final query = _searchQuery.trim().toLowerCase();
-      final matchesSearch = query.isEmpty ||
-          product.name.toLowerCase().contains(query) ||
-          product.code.toLowerCase().contains(query) ||
-          product.category.toLowerCase().contains(query);
+      if (normalizedQuery.isEmpty) return matchesCategory;
+      final normalizedName = AlRabieCatalog.normalizeArabicSearch(product.name);
+      final normalizedCode = product.code.toLowerCase();
+      final normalizedCat =
+          AlRabieCatalog.normalizeArabicSearch(product.category);
+      final matchesSearch = normalizedName.contains(normalizedQuery) ||
+          normalizedCode.contains(normalizedQuery) ||
+          normalizedCat.contains(normalizedQuery);
       return matchesCategory && matchesSearch;
     }).toList();
   }

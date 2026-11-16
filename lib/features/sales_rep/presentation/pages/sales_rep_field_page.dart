@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
@@ -44,9 +45,9 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
     'بقالة وميني ماركت الأمانة - صنعاء',
   ];
 
-  /// القائمة الرسمية الكاملة لأصناف الربيع المستخرجة من ملف (اصناف الربيع.xlsx - ORDER)
-  static const List<AlRabieProduct> _catalogProducts =
-      AlRabieCatalog.allProducts;
+  /// القائمة الرسمية الكاملة لأصناف الربيع المستخرجة مباشرة من `AlRabieCatalog.items` (62 صنفاً)
+  final List<AlRabieProduct> _catalogProducts =
+      List<AlRabieProduct>.unmodifiable(AlRabieCatalog.items);
 
   String _selectedMerchant = _merchants.first;
   String _selectedCategory = 'الكل';
@@ -75,6 +76,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   @override
   void initState() {
     super.initState();
+    // 1. تحميل فوري ومضمون (Local-First) لجميع الأصناف الـ 62 من AlRabieCatalog.items بكميات افتراضية (0)
     for (final item in _catalogProducts) {
       _auditCartons[item.id] = 0;
       _auditPacks[item.id] = 0;
@@ -83,6 +85,67 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
       _orderCartons[item.id] = 0;
       _orderCartonControllers[item.id] = TextEditingController(text: '0');
+    }
+
+    // 2. دمج أي كميات مخزنة محلياً أو في Supabase حسب رقم الصنف (SKU) دون حجب أو مسح القائمة أبداً
+    _mergeStockQuantitiesBySku();
+  }
+
+  Future<void> _mergeStockQuantitiesBySku() async {
+    try {
+      final cachedAudits = _offlineSync.getCachedInventoryAudits();
+      if (cachedAudits.isNotEmpty) {
+        cachedAudits.forEach((key, data) {
+          final matched = AlRabieCatalog.findBySkuOrId(
+            data['sku']?.toString() ?? data['product_id']?.toString() ?? key,
+          );
+          if (matched != null) {
+            final cartons =
+                ((data['carton_qty'] ?? data['carton_count']) as num?)
+                        ?.toInt() ??
+                    0;
+            final packs =
+                ((data['pack_qty'] ?? data['pack_count']) as num?)?.toInt() ??
+                    0;
+            if (cartons > 0 || packs > 0) {
+              _setAuditCarton(matched.id, cartons);
+              _setAuditPack(matched.id, packs);
+            }
+          }
+        });
+      }
+
+      if (AppConstants.isSupabaseConfigured) {
+        final rows = await Supabase.instance.client
+            .from(AppConstants.tableInventoryAudits)
+            .select()
+            .limit(100);
+        if (!mounted) return;
+        for (final raw in rows) {
+          if (raw is Map) {
+            final matched = AlRabieCatalog.findBySkuOrId(
+              raw['sku']?.toString() ??
+                  raw['item_code']?.toString() ??
+                  raw['product_id']?.toString(),
+            );
+            if (matched != null) {
+              final cartons =
+                  ((raw['carton_qty'] ?? raw['carton_count']) as num?)
+                          ?.toInt() ??
+                      0;
+              final packs =
+                  ((raw['pack_qty'] ?? raw['pack_count']) as num?)?.toInt() ??
+                      0;
+              if (cartons > 0 || packs > 0) {
+                _setAuditCarton(matched.id, cartons);
+                _setAuditPack(matched.id, packs);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Local-first catalog active (remote merge skipped): $e');
     }
   }
 
@@ -103,14 +166,17 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   }
 
   List<AlRabieProduct> get _filteredProducts {
-    final query = _searchQuery.trim().toLowerCase();
+    final normalizedQuery = AlRabieCatalog.normalizeArabicSearch(_searchQuery);
     return _catalogProducts.where((p) {
       final matchesCategory =
           _selectedCategory == 'الكل' || p.category == _selectedCategory;
-      final matchesQuery = query.isEmpty ||
-          p.name.toLowerCase().contains(query) ||
-          p.code.toLowerCase().contains(query) ||
-          p.category.toLowerCase().contains(query);
+      if (normalizedQuery.isEmpty) return matchesCategory;
+      final normalizedName = AlRabieCatalog.normalizeArabicSearch(p.name);
+      final normalizedCode = p.code.toLowerCase();
+      final normalizedCat = AlRabieCatalog.normalizeArabicSearch(p.category);
+      final matchesQuery = normalizedName.contains(normalizedQuery) ||
+          normalizedCode.contains(normalizedQuery) ||
+          normalizedCat.contains(normalizedQuery);
       return matchesCategory && matchesQuery;
     }).toList();
   }

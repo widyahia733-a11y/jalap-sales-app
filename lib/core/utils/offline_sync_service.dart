@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../constants/al_rabie_catalog.dart';
 import '../constants/app_constants.dart';
 
 /// عنصر عملية ميدانية محفوظة في طابور المزامنة (Sync Queue) عند العمل بدون إنترنت
@@ -54,11 +55,20 @@ class OfflineSyncService {
 
   static final OfflineSyncService instance = OfflineSyncService._();
 
-  static const String _keyProductsCache = 'jalap_cache_products_alrabie_v2';
-  static const String _keyAuditsCache = 'jalap_cache_inventory_audits_alrabie_v2';
-  static const String _keyOrdersCache = 'jalap_cache_orders_alrabie_v2';
+  static const String _keyProductsCache = 'jalap_cache_products_alrabie_v3_fixed';
+  static const String _keyAuditsCache = 'jalap_cache_inventory_audits_alrabie_v3_fixed';
+  static const String _keyOrdersCache = 'jalap_cache_orders_alrabie_v3_fixed';
   static const String _keyCustomersCache = 'jalap_cache_customers_v1';
   static const String _keySyncQueue = 'jalap_sync_queue_v1';
+  static const String _keyCatalogSyncedToSupabase = 'jalap_alrabie_supabase_synced_v3';
+
+  static const List<String> _legacyCacheKeysToPurge = [
+    'jalap_cache_products_v1',
+    'jalap_cache_products_alrabie_v2',
+    'jalap_cache_inventory_audits_v1',
+    'jalap_cache_inventory_audits_alrabie_v2',
+    'jalap_cache_orders_v1',
+  ];
 
   SharedPreferences? _prefs;
 
@@ -75,6 +85,15 @@ class OfflineSyncService {
   Future<void> initialize() async {
     try {
       _prefs = await SharedPreferences.getInstance();
+      for (final legacyKey in _legacyCacheKeysToPurge) {
+        if (_prefs!.containsKey(legacyKey)) {
+          await _prefs!.remove(legacyKey);
+        }
+      }
+      // تخزين الكتالوج الرسمي الكامل (62 صنفاً) محلياً بشكل مضمون منذ اللحظة الأولى
+      await cacheProducts(
+        AlRabieCatalog.items.map((p) => p.toJson()).toList(),
+      );
       final queue = getPendingQueue();
       pendingSyncCountNotifier.value = queue.length;
     } catch (error) {
@@ -82,6 +101,28 @@ class OfflineSyncService {
     }
 
     await checkConnectivityAndFlush();
+  }
+
+  /// مزامنة كتالوج الربيع الرسمي (62 صنفاً) إلى جدول `products` في Supabase وتنظيف أي أصناف تجريبية قديمة
+  Future<void> syncOfficialCatalogToSupabase() async {
+    if (!AppConstants.isSupabaseConfigured) return;
+    try {
+      final supabase = Supabase.instance.client;
+      final List<Map<String, dynamic>> upsertRows = <Map<String, dynamic>>[];
+      for (int i = 0; i < AlRabieCatalog.items.length; i++) {
+        final item = AlRabieCatalog.items[i];
+        upsertRows.add(<String, dynamic>{
+          'id': i + 1,
+          'item_code': item.code,
+          'product_name': item.name,
+          'image_url': item.imageAsset,
+        });
+      }
+      await supabase.from(AppConstants.tableProducts).upsert(upsertRows);
+      await _prefs?.setBool(_keyCatalogSyncedToSupabase, true);
+    } catch (e) {
+      debugPrint('Background catalog sync info: $e');
+    }
   }
 
   /// فحص الاتصال الفعلي بـ Supabase ومحاولة تفريغ طابور المزامنة إن وجد
@@ -97,6 +138,10 @@ class OfflineSyncService {
           .select('id')
           .limit(1);
       isOnlineNotifier.value = true;
+      final alreadySynced = _prefs?.getBool(_keyCatalogSyncedToSupabase) ?? false;
+      if (!alreadySynced) {
+        await syncOfficialCatalogToSupabase();
+      }
       await flushSyncQueue();
       return true;
     } catch (_) {

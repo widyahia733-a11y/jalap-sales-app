@@ -55,6 +55,9 @@ class AlRabieCatalog {
     'مشروبات خاصة وقهوة',
   ];
 
+  /// المرجع المباشر لجميع الأصناف الـ 62 المعتمدة (Local-First Guaranteed Rendering)
+  static const List<AlRabieProduct> items = allProducts;
+
   /// جميع الأصناف الرسمية (62 صنفاً) بأرقام الأصناف الرسمية والأكواد التسلسلية (JLP-3001..JLP-3012) والصور المرفقة
   static const List<AlRabieProduct> allProducts = [
     // =========================================================================
@@ -709,6 +712,33 @@ class AlRabieCatalog {
       imageAsset: 'assets/images/products/image21.png',
     ),
   ];
+
+  /// تطبيع النصوص العربية لتسهيل البحث الفوري بالاسم أو الكود (توحيد الهمزات والتاء المربوطة والياء)
+  static String normalizeArabicSearch(String input) {
+    return input
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[أإآ]'), 'ا')
+        .replaceAll('ة', 'ه')
+        .replaceAll('ى', 'ي')
+        .replaceAll('×', 'x');
+  }
+
+  /// البحث عن صنف من الكتالوج بواسطة رقم الصنف (SKU) أو المعرف المحلي أو الرقم التسلسلي في قاعدة البيانات
+  static AlRabieProduct? findBySkuOrId(String? key) {
+    if (key == null || key.trim().isEmpty) return null;
+    final trimmed = key.trim();
+    for (int i = 0; i < allProducts.length; i++) {
+      final p = allProducts[i];
+      if (p.code == trimmed ||
+          p.id == trimmed ||
+          'rabie-${p.code}' == trimmed ||
+          '${i + 1}' == trimmed) {
+        return p;
+      }
+    }
+    return null;
+  }
 
   static String resolveImageByCodeOrName(String code, String name) {
     for (final p in allProducts) {
