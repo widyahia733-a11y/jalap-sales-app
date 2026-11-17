@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/audit_log_service.dart';
 import '../../../dashboard/presentation/pages/dashboard_page.dart';
 import '../../data/models/user_profile_model.dart';
 
@@ -199,6 +200,19 @@ class _LoginPageState extends State<LoginPage> {
         );
         return;
       }
+
+      await AuditLogService.instance.logAction(
+        userId: userProfile.id,
+        userName: userProfile.fullName,
+        userRole: userProfile.role,
+        branchName: userProfile.branchId ?? 'الإدارة العامة',
+        actionType: 'login_success',
+        targetEntity: userProfile.username.isNotEmpty
+            ? userProfile.username
+            : userProfile.email,
+        details:
+            'تسجيل دخول ناجح للنظام بصلاحية (${userProfile.roleArabicLabel})',
+      );
 
       _completeLoginAndNavigate(userProfile);
     } on AuthException catch (authError) {

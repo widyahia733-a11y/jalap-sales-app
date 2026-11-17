@@ -27,7 +27,7 @@
   <script>
     (function clearLegacyServiceWorkerAndCache() {
       try {
-        const CURRENT_BUILD_VERSION = 'jalap_v2026_11_18_r13';
+        const CURRENT_BUILD_VERSION = 'jalap_v2026_11_18_r14';
         const storedVersion = localStorage.getItem('jalap_build_version');
 
         if ('serviceWorker' in navigator) {
@@ -106,7 +106,7 @@
     }
   </style>
 
-  <script src="flutter.js?v=jalap_v2026_11_18_r13" defer></script>
+  <script src="flutter.js?v=jalap_v2026_11_18_r14" defer></script>
 </head>
 <body dir="ltr">
   <script>
@@ -142,7 +142,7 @@
     window.addEventListener('load', function(ev) {
       // تحميل main.dart.js مباشرة بدون Service Worker مع رقم إصدار لكسر الكاش
       _flutter.loader.loadEntrypoint({
-        entrypointUrl: "main.dart.js?v=jalap_v2026_11_18_r13",
+        entrypointUrl: "main.dart.js?v=jalap_v2026_11_18_r14",
         onEntrypointLoaded: function(engineInitializer) {
           engineInitializer.initializeEngine().then(function(appRunner) {
             appRunner.runApp();

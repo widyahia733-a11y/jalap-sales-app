@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/audit_log_service.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 import '../../../../core/widgets/quantity_calculator_sheet.dart';
 import '../../../auth/data/models/user_profile_model.dart';
@@ -34,8 +35,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   /// 0 = جرد المخزون | 1 = طلب بضاعة للفرع
   int _activeSection = 0;
 
-  /// قائمة العملاء تبدأ فارغة تماماً لإتاحة الإدخال اليدوي الحر للمندوب دون أي عملاء وهميين
-  static const List<String> _merchants = <String>[];
+  /// قائمة عملاء فرع المندوب الفعليين المسجلين في قاعدة البيانات (تبدأ فارغة دون أي بيانات وهمية)
+  List<String> _branchCustomers = <String>[];
 
   /// القائمة الرسمية الكاملة لأصناف الربيع المستخرجة مباشرة من `AlRabieCatalog.items` (62 صنفاً)
   final List<AlRabieProduct> _catalogProducts =
@@ -90,6 +91,16 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   Future<void> _mergeStockQuantitiesBySku() async {
     try {
+      // جلب عملاء فرع المندوب الفعليين من Supabase (مع إعطاء الأولوية لفرع المندوب)
+      final branchCusts = await _offlineSync.fetchBranchPrioritizedCustomers(
+        branchNumber: widget.userProfile.branchNumber,
+        branchName: widget.userProfile.branchId,
+        repId: widget.userProfile.id,
+      );
+      if (mounted && branchCusts.isNotEmpty) {
+        setState(() => _branchCustomers = branchCusts);
+      }
+
       final cachedAudits = _offlineSync.getCachedInventoryAudits();
       if (cachedAudits.isNotEmpty) {
         cachedAudits.forEach((key, data) {
@@ -288,6 +299,19 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       final Map<String, Map<String, dynamic>> localAuditCache =
           _offlineSync.getCachedInventoryAudits();
 
+      // ربط العميل المدخل بفرع المندوب في جدول customers وإرجاع customer_id
+      final int? resolvedCustomerId =
+          await _offlineSync.resolveOrCreateCustomerForBranch(
+        customerName: _customerController.text,
+        branchNumber: widget.userProfile.branchNumber,
+        branchName: widget.userProfile.branchId,
+        repId: widget.userProfile.id,
+      );
+      if (_customerController.text.trim().isNotEmpty &&
+          !_branchCustomers.contains(_customerController.text.trim())) {
+        _branchCustomers.insert(0, _customerController.text.trim());
+      }
+
       for (final product in _catalogProducts) {
         final cartons = _auditCartons[product.id] ?? 0;
         final packs = _auditPacks[product.id] ?? 0;
@@ -332,6 +356,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
             table: AppConstants.tableInventoryAudits,
             action: 'insert',
             payload: <String, dynamic>{
+              if (resolvedCustomerId != null)
+                'customer_id': resolvedCustomerId,
               'product_id': product.id,
               'stock_qty': cartons,
               'carton_qty': cartons,
@@ -343,6 +369,17 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
           );
         }
       }
+
+      await AuditLogService.instance.logAction(
+        userId: widget.userProfile.id,
+        userName: widget.userProfile.fullName,
+        userRole: widget.userProfile.role,
+        branchName: widget.userProfile.branchId ?? 'فرع صنعاء',
+        actionType: 'submit_inventory_audit',
+        targetEntity: batchRef,
+        details:
+            'إرسال جرد مخزون للمشرف ($_auditedItemsCount أصناف • $_totalAuditCartons كرتون) - العميل: $_effectiveMerchantName',
+      );
 
       await _offlineSync.cacheInventoryAudits(localAuditCache);
 
@@ -452,6 +489,19 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       cachedOrders.insert(0, newOrderJson);
       await _offlineSync.cacheOrders(cachedOrders);
 
+      // ربط العميل المدخل بفرع المندوب في جدول customers وإرجاع customer_id
+      final int? resolvedCustomerId =
+          await _offlineSync.resolveOrCreateCustomerForBranch(
+        customerName: _customerController.text,
+        branchNumber: widget.userProfile.branchNumber,
+        branchName: branchName,
+        repId: widget.userProfile.id,
+      );
+      if (_customerController.text.trim().isNotEmpty &&
+          !_branchCustomers.contains(_customerController.text.trim())) {
+        _branchCustomers.insert(0, _customerController.text.trim());
+      }
+
       bool syncedOnline = false;
       for (final p in _catalogProducts) {
         final qty = _orderCartons[p.id] ?? 0;
@@ -478,6 +528,8 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
             table: AppConstants.tableOrders,
             action: 'insert',
             payload: <String, dynamic>{
+              if (resolvedCustomerId != null)
+                'customer_id': resolvedCustomerId,
               'product_id': p.id,
               'order_qty': qty,
               'items_count': qty,
@@ -489,6 +541,17 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
           );
         }
       }
+
+      await AuditLogService.instance.logAction(
+        userId: widget.userProfile.id,
+        userName: widget.userProfile.fullName,
+        userRole: widget.userProfile.role,
+        branchName: branchName,
+        actionType: 'create_order',
+        targetEntity: orderNumber,
+        details:
+            'إنشاء طلب بضاعة للفرع ($_orderedDistinctProductsCount أصناف • $totalCartons كرتون) - العميل: $merchantLabel',
+      );
 
       if (mounted) {
         setState(() {
@@ -681,13 +744,14 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // حقل اختياري ومرن للعميل / التاجر (كتابة يدوية حرة أو اختيار من القائمة أو تركه فارغاً)
+                    // حقل اختياري ومرن للعميل / التاجر مرتبط بفرع المندوب
                     FlexibleCustomerField(
                       controller: _customerController,
-                      suggestedCustomers: _merchants,
-                      labelText: 'اسم العميل / التاجر (اختياري)',
+                      suggestedCustomers: _branchCustomers,
+                      branchName: widget.userProfile.branchId,
+                      labelText: 'اسم العميل / التاجر',
                       hintText:
-                          'اكتب اسم العميل يدوياً أو اختر من القائمة (اختياري)...',
+                          'اكتب اسم العميل يدوياً لربطه بـ ${widget.userProfile.branchId ?? "الفرع"}...',
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 8),

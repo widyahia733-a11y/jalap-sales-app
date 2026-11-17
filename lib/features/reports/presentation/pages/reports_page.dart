@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/audit_log_service.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 import '../../../auth/data/models/user_profile_model.dart';
 
@@ -72,12 +73,13 @@ class _ReportsPageState extends State<ReportsPage> {
   final TextEditingController _quickSearchController = TextEditingController();
 
   List<FieldReportRecord> _allRecords = <FieldReportRecord>[];
+  List<AuditLogEntry> _auditLogs = <AuditLogEntry>[];
   List<UserProfileModel> _salesReps = <UserProfileModel>[];
   Map<int, String> _branchesMap =
       Map<int, String>.from(UserProfileModel.officialBranchesById);
 
-  // حالة الفلاتر الخمسة الشاملة
-  String _selectedRecordType = 'all'; // 'all', 'audit', 'order'
+  // حالة الفلاتر الخمسة الشاملة + وضع سجل التدقيق (audit_logs)
+  String _selectedRecordType = 'all'; // 'all', 'audit', 'order', 'audit_logs'
   String _selectedRepId = 'all'; // 'all' أو معرف المندوب (rep.id)
   String _selectedBranchName = 'الكل'; // 'الكل' أو اسم الفرع
   AlRabieProduct? _selectedProduct; // null = جميع الأصناف الـ 62
@@ -356,6 +358,37 @@ class _ReportsPageState extends State<ReportsPage> {
       }
 
       combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+      // 7. جلب وبناء سجل التدقيق الرقابي الشامل (Audit Trail - audit_logs)
+      final List<AuditLogEntry> fetchedLogs =
+          await AuditLogService.instance.fetchCombinedAuditLogs();
+      for (final rec in combined) {
+        final alreadyLogged = fetchedLogs.any(
+          (l) =>
+              l.userId == rec.repId &&
+              l.createdAt.difference(rec.timestamp).inMinutes.abs() < 2 &&
+              l.details.contains(rec.productCode),
+        );
+        if (!alreadyLogged) {
+          fetchedLogs.add(
+            AuditLogEntry(
+              id: 'LOG-${rec.id}',
+              userId: rec.repId.isNotEmpty ? rec.repId : rec.repUsername,
+              userName: rec.repName,
+              userRole: 'sales_rep',
+              branchName: rec.branchName,
+              actionType:
+                  rec.isAudit ? 'submit_inventory_audit' : 'create_order',
+              targetEntity: '[${rec.productCode}] ${rec.productName}',
+              details:
+                  '${rec.recordTypeArabic}: ${rec.cartonQty} كرتون • العميل: ${rec.customerName} • الفرع: ${rec.branchName}',
+              createdAt: rec.timestamp,
+            ),
+          );
+        }
+      }
+      fetchedLogs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _auditLogs = fetchedLogs;
     } catch (error) {
       debugPrint('Error loading reports data: $error');
     }
@@ -410,6 +443,7 @@ class _ReportsPageState extends State<ReportsPage> {
     return _allRecords.where((rec) {
       // 1. فلتر نوع الحركة (الكل / جرد / طلبات)
       if (_selectedRecordType != 'all' &&
+          _selectedRecordType != 'audit_logs' &&
           rec.recordType != _selectedRecordType) {
         return false;
       }
@@ -692,6 +726,16 @@ class _ReportsPageState extends State<ReportsPage> {
 
     final csvText = buffer.toString();
     await Clipboard.setData(ClipboardData(text: csvText));
+    await AuditLogService.instance.logAction(
+      userId: 'admin_master',
+      userName: 'مشرف النظام',
+      userRole: 'admin',
+      branchName: _selectedBranchName,
+      actionType: 'export_report',
+      targetEntity: 'CSV Report (${records.length} rows)',
+      details:
+          'تصدير تقرير إداري شامل (${records.length} حركة • $totalCartons كرتون)',
+    );
 
     if (!mounted) return;
 
@@ -932,7 +976,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       const SizedBox(height: 10),
 
                       // =======================================================
-                      // 2. فلتر نوع الحركة (الكل / الجرد الميداني / طلبات المبيعات)
+                      // 2. فلتر نوع الحركة + سجل التدقيق الرقابي (audit_logs)
                       // =======================================================
                       Row(
                         children: [
@@ -943,21 +987,30 @@ class _ReportsPageState extends State<ReportsPage> {
                             onTap: () =>
                                 setState(() => _selectedRecordType = 'all'),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           _RecordTypeTabChip(
-                            label: 'الجرد الميداني',
+                            label: 'الجرد',
                             isSelected: _selectedRecordType == 'audit',
                             icon: Icons.fact_check_rounded,
                             onTap: () =>
                                 setState(() => _selectedRecordType = 'audit'),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           _RecordTypeTabChip(
-                            label: 'طلبات المبيعات',
+                            label: 'الطلبات',
                             isSelected: _selectedRecordType == 'order',
                             icon: Icons.local_shipping_rounded,
                             onTap: () =>
                                 setState(() => _selectedRecordType = 'order'),
+                          ),
+                          const SizedBox(width: 5),
+                          _RecordTypeTabChip(
+                            label: 'سجل التدقيق (${_auditLogs.length})',
+                            isSelected: _selectedRecordType == 'audit_logs',
+                            icon: Icons.policy_rounded,
+                            onTap: () => setState(
+                              () => _selectedRecordType = 'audit_logs',
+                            ),
                           ),
                         ],
                       ),
@@ -1304,11 +1357,13 @@ class _ReportsPageState extends State<ReportsPage> {
                 ),
 
                 // =============================================================
-                // 6. قائمة السجلات والحركات المفلترة بالتفصيل
+                // 6. قائمة السجلات والحركات المفلترة أو سجل التدقيق الرقابي (audit_logs)
                 // =============================================================
                 Expanded(
-                  child: filtered.isEmpty
-                      ? Center(
+                  child: _selectedRecordType == 'audit_logs'
+                      ? _buildAuditTrailLogsView()
+                      : (filtered.isEmpty
+                          ? Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
                             child: Column(
@@ -1552,10 +1607,161 @@ class _ReportsPageState extends State<ReportsPage> {
                               ),
                             );
                           },
-                        ),
+                        )),
                 ),
               ],
             ),
+    );
+  }
+
+  /// واجهة عرض سجل التدقيق الرقابي الشامل (`audit_logs`) لجميع العمليات الحساسة
+  Widget _buildAuditTrailLogsView() {
+    final normalizedSearch =
+        AlRabieCatalog.normalizeArabicSearch(_quickSearchQuery);
+    final filteredLogs = _auditLogs.where((log) {
+      if (_selectedRepId != 'all' && log.userId != _selectedRepId) {
+        return false;
+      }
+      if (_selectedBranchName != 'الكل' &&
+          !log.branchName
+              .contains(_selectedBranchName.replaceAll('فرع ', ''))) {
+        return false;
+      }
+      if (!_matchesDateFilter(log.createdAt)) {
+        return false;
+      }
+      if (normalizedSearch.isNotEmpty) {
+        final hay = AlRabieCatalog.normalizeArabicSearch(
+          '${log.userName} ${log.userId} ${log.actionArabicLabel} ${log.targetEntity} ${log.details} ${log.branchName}',
+        );
+        if (!hay.contains(normalizedSearch)) return false;
+      }
+      return true;
+    }).toList();
+
+    if (filteredLogs.isEmpty) {
+      return const Center(
+        child: Text(
+          'لا توجد سجلات تدقيق مطابقة للفلاتر الحالية.',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppConstants.deepNavyBlue,
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 24),
+      itemCount: filteredLogs.length,
+      itemBuilder: (context, index) {
+        final log = filteredLogs[index];
+        final isOrder = log.actionType == 'create_order';
+        final isAudit = log.actionType == 'submit_inventory_audit';
+
+        return Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isOrder
+                  ? AppConstants.royalGold
+                  : (isAudit ? Colors.teal.shade300 : Colors.indigo.shade200),
+              width: 1.2,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppConstants.deepNavyBlue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.verified_user_rounded,
+                            size: 13,
+                            color: AppConstants.royalGold,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            log.actionArabicLabel,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              color: AppConstants.royalGold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _formatDateTime(log.createdAt),
+                        textDirection: TextDirection.ltr,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  log.details,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.5,
+                    color: AppConstants.deepNavyBlue,
+                  ),
+                ),
+                if (log.targetEntity.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'المرجع / الكيان: ${log.targetEntity}',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const Divider(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _InfoMetaBadge(
+                      icon: Icons.person_outline_rounded,
+                      label: '${log.userName} (${log.userRole})',
+                    ),
+                    _InfoMetaBadge(
+                      icon: Icons.warehouse_outlined,
+                      label: log.branchName,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

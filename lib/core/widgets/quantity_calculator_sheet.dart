@@ -4,10 +4,11 @@ import 'package:flutter/services.dart';
 import '../constants/al_rabie_catalog.dart';
 import '../constants/app_constants.dart';
 
-/// حقل إدخال حر واختياري لاسم العميل / التاجر (يبدأ فارغاً تماماً بدون أي عملاء وهميين مسبقين)
+/// حقل إدخال حر ومرن لاسم العميل / التاجر مرتبط بفرع المندوب (يبدأ فارغاً بدون عملاء وهميين، ويدعم اختيار عملاء الفرع الفعليين إن وجدوا)
 class FlexibleCustomerField extends StatelessWidget {
   final TextEditingController controller;
   final List<String> suggestedCustomers;
+  final String? branchName;
   final String labelText;
   final String hintText;
   final ValueChanged<String>? onChanged;
@@ -16,10 +17,102 @@ class FlexibleCustomerField extends StatelessWidget {
     super.key,
     required this.controller,
     this.suggestedCustomers = const <String>[],
-    this.labelText = 'اسم العميل / التاجر (إدخال حر - اختياري)',
-    this.hintText = 'اكتب اسم العميل أو نقطة البيع يدوياً هنا...',
+    this.branchName,
+    this.labelText = 'اسم العميل / التاجر المرتبط بالفرع (إدخال حر)',
+    this.hintText = 'اكتب اسم العميل أو المنفذ التجاري يدوياً هنا...',
     this.onChanged,
   });
+
+  Future<void> _openBranchCustomersSheet(BuildContext context) async {
+    FocusScope.of(context).unfocus();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.storefront_rounded,
+                      color: AppConstants.deepNavyBlue,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        branchName != null && branchName!.isNotEmpty
+                            ? 'عملاء $branchName المسجلون'
+                            : 'عملاء الفرع المسجلون',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          color: AppConstants.deepNavyBlue,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 18),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: suggestedCustomers.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, idx) {
+                      final cust = suggestedCustomers[idx];
+                      return ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.handshake_outlined,
+                          color: AppConstants.deepNavyBlue,
+                          size: 20,
+                        ),
+                        title: Text(
+                          cust,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13.5,
+                            color: AppConstants.deepNavyBlue,
+                          ),
+                        ),
+                        onTap: () => Navigator.of(sheetCtx).pop(cust),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected != null) {
+      controller.text = selected;
+      onChanged?.call(selected);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +120,8 @@ class FlexibleCustomerField extends StatelessWidget {
       valueListenable: controller,
       builder: (context, value, _) {
         final hasText = value.text.trim().isNotEmpty;
+        final hasRealSuggestions = suggestedCustomers.isNotEmpty;
+
         return TextField(
           controller: controller,
           onChanged: onChanged,
@@ -36,23 +131,53 @@ class FlexibleCustomerField extends StatelessWidget {
             color: AppConstants.deepNavyBlue,
           ),
           decoration: InputDecoration(
-            labelText: labelText,
+            labelText: branchName != null && branchName!.isNotEmpty
+                ? '$labelText • $branchName'
+                : labelText,
             hintText: hintText,
             prefixIcon: const Icon(
               Icons.edit_location_alt_rounded,
               color: AppConstants.deepNavyBlue,
               size: 20,
             ),
-            suffixIcon: hasText
-                ? IconButton(
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasText)
+                  IconButton(
                     tooltip: 'مسح اسم العميل',
                     onPressed: () {
                       controller.clear();
                       onChanged?.call('');
                     },
                     icon: const Icon(Icons.clear_rounded, size: 18),
-                  )
-                : null,
+                  ),
+                if (hasRealSuggestions)
+                  IconButton(
+                    tooltip: 'اختيار من عملاء الفرع المضافين',
+                    onPressed: () => _openBranchCustomersSheet(context),
+                    icon: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppConstants.softRoyalGold,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppConstants.royalGold),
+                      ),
+                      child: Text(
+                        'عملاء الفرع (${suggestedCustomers.length})',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppConstants.deepNavyBlue,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             filled: true,
             fillColor: AppConstants.cleanLightGrey,
             isDense: true,

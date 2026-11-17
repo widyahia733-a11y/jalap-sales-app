@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/audit_log_service.dart';
 import '../../../auth/data/models/user_profile_model.dart';
 
 /// شاشة إدارة المناديب الميدانيين (Sales Reps Management) - مخصصة للمشرف / مدير النظام (Admin Only)
@@ -163,6 +164,17 @@ class SalesRepsManagementPageState extends State<SalesRepsManagementPage> {
             .from(AppConstants.tableUsersProfiles)
             .update({'is_active': newStatus}).eq('id', rep.id);
       }
+      await AuditLogService.instance.logAction(
+        userId: 'admin_master',
+        userName: 'مشرف النظام',
+        userRole: 'admin',
+        branchName: rep.branchId ?? 'فرع صنعاء',
+        actionType: 'update_sales_rep',
+        targetEntity: rep.username,
+        details: newStatus
+            ? 'تفعيل حساب المندوب "${rep.fullName}" (${rep.branchId})'
+            : 'إيقاف حساب المندوب "${rep.fullName}" (${rep.branchId})',
+      );
       widget.onRepsChanged?.call();
 
       if (!mounted) return;
@@ -306,6 +318,18 @@ class SalesRepsManagementPageState extends State<SalesRepsManagementPage> {
                     'is_active': isActive,
                   });
                 }
+
+                await AuditLogService.instance.logAction(
+                  userId: 'admin_master',
+                  userName: 'مشرف النظام',
+                  userRole: 'admin',
+                  branchName: branchName,
+                  actionType: isEditing ? 'update_sales_rep' : 'create_sales_rep',
+                  targetEntity: username,
+                  details: isEditing
+                      ? 'تحديث بيانات/فرع المندوب "$fullName" ($branchName)'
+                      : 'إنشاء حساب مندوب جديد "$fullName" ($username) وتخصيصه لـ ($branchName)',
+                );
 
                 await _loadSalesRepsAndBranches();
 

@@ -226,6 +226,113 @@ class OfflineSyncService {
     return _readJsonList(_keyReportsCache);
   }
 
+  /// جلب قائمة أسماء العملاء الحقيقيين المسجلين في Supabase والمرتبطين بفرع المندوب (أو جميع الفروع للمشرف)
+  /// دون أي بيانات وهمية، مع إعطاء الأولوية لعملاء فرع المندوب الحالي.
+  Future<List<String>> fetchBranchPrioritizedCustomers({
+    int? branchNumber,
+    String? branchName,
+    String? repId,
+  }) async {
+    final List<String> branchMatches = <String>[];
+    final List<String> otherBranches = <String>[];
+
+    try {
+      if (AppConstants.isSupabaseConfigured) {
+        final List<dynamic> rows = await Supabase.instance.client
+            .from(AppConstants.tableCustomers)
+            .select('id, customer_name, branch_id, governorate, assigned_rep_id')
+            .order('created_at', ascending: false)
+            .limit(100);
+
+        for (final r in rows) {
+          if (r is Map) {
+            final name = r['customer_name']?.toString().trim() ?? '';
+            if (name.isEmpty || name == 'temp') continue;
+            final rowBranchId = int.tryParse(r['branch_id']?.toString() ?? '');
+            final rowGov = r['governorate']?.toString() ?? '';
+            final rowRep = r['assigned_rep_id']?.toString() ?? '';
+
+            final isSameBranch =
+                (branchNumber != null && rowBranchId == branchNumber) ||
+                (branchName != null &&
+                    branchName.isNotEmpty &&
+                    rowGov.contains(branchName.replaceAll('فرع ', ''))) ||
+                (repId != null && repId.isNotEmpty && rowRep == repId);
+
+            if (isSameBranch) {
+              if (!branchMatches.contains(name)) branchMatches.add(name);
+            } else {
+              if (!otherBranches.contains(name) &&
+                  !branchMatches.contains(name)) {
+                otherBranches.add(name);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Fetch branch customers info: $e');
+    }
+
+    // دمج أي عملاء أضافهم المندوب محلياً في نفس الفرع
+    for (final c in getCachedCustomers()) {
+      final name =
+          (c['customer_name'] ?? c['name'] ?? c['store_name'])?.toString().trim() ?? '';
+      if (name.isNotEmpty &&
+          !branchMatches.contains(name) &&
+          !otherBranches.contains(name)) {
+        branchMatches.add(name);
+      }
+    }
+
+    return <String>[...branchMatches, ...otherBranches];
+  }
+
+  /// ربط أو تسجيل العميل المدخل يدوياً في جدول `customers` بفرع المندوب وإرجاع `customer_id` الفعلي
+  Future<int?> resolveOrCreateCustomerForBranch({
+    required String customerName,
+    int? branchNumber,
+    String? branchName,
+    String? repId,
+  }) async {
+    final trimmed = customerName.trim();
+    if (trimmed.isEmpty || trimmed.contains('بدون تحديد')) return null;
+
+    if (!AppConstants.isSupabaseConfigured) return null;
+
+    try {
+      final supabase = Supabase.instance.client;
+      final existing = await supabase
+          .from(AppConstants.tableCustomers)
+          .select('id, customer_name, branch_id')
+          .eq('customer_name', trimmed)
+          .limit(1);
+
+      if (existing.isNotEmpty && existing.first is Map) {
+        return int.tryParse(existing.first['id']?.toString() ?? '');
+      }
+
+      final inserted = await supabase
+          .from(AppConstants.tableCustomers)
+          .insert({
+            'customer_name': trimmed,
+            if (branchNumber != null) 'branch_id': branchNumber,
+            if (branchName != null && branchName.isNotEmpty)
+              'governorate': branchName,
+            if (_isValidUuid(repId)) 'assigned_rep_id': repId,
+          })
+          .select('id')
+          .maybeSingle();
+
+      if (inserted != null) {
+        return int.tryParse(inserted['id']?.toString() ?? '');
+      }
+    } catch (e) {
+      debugPrint('Resolve customer_id info: $e');
+    }
+    return null;
+  }
+
   bool _isValidUuid(String? value) {
     if (value == null || value.trim().isEmpty) return false;
     final regex = RegExp(

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/utils/audit_log_service.dart';
 import '../../../../core/utils/offline_sync_service.dart';
 import '../../../../core/widgets/quantity_calculator_sheet.dart';
 
@@ -390,6 +391,13 @@ class _OrdersPageState extends State<OrdersPage> {
               });
 
               await _persistOrdersLocally();
+              final int? resolvedCustId =
+                  await _offlineSync.resolveOrCreateCustomerForBranch(
+                customerName: customerController.text,
+                branchName: newOrder.branchName,
+                repId: widget.currentUserId,
+              );
+
               bool syncedOnline = false;
               for (final line in catalogLines.where((l) => l.quantity > 0)) {
                 await _offlineSync.appendReportRecord(<String, dynamic>{
@@ -414,6 +422,7 @@ class _OrdersPageState extends State<OrdersPage> {
                   table: AppConstants.tableOrders,
                   action: 'insert',
                   payload: {
+                    if (resolvedCustId != null) 'customer_id': resolvedCustId,
                     'product_id': line.code,
                     'order_qty': line.quantity,
                     'status': newOrder.status.dbValue,
@@ -423,6 +432,17 @@ class _OrdersPageState extends State<OrdersPage> {
                   },
                 );
               }
+
+              await AuditLogService.instance.logAction(
+                userId: widget.currentUserId ?? 'admin_master',
+                userName: 'إدارة المبيعات / المشرف',
+                userRole: 'admin',
+                branchName: newOrder.branchName,
+                actionType: 'create_order',
+                targetEntity: newOrder.orderNumber,
+                details:
+                    'إنشاء طلب بضاعة (${newOrder.itemsCount} كرتون) - العميل: ${newOrder.customerName}',
+              );
 
               if (sheetContext.mounted) {
                 Navigator.of(sheetContext).pop();

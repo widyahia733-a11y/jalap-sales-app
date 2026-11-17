@@ -88,4 +88,5 @@ class AppConstants {
   static const String tableOrders = 'orders';
   static const String tableProducts = 'products';
   static const String tableUsersProfiles = 'users_profiles';
+  static const String tableAuditLogs = 'audit_logs';
 }
