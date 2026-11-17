@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
+import '../../../../core/widgets/quantity_calculator_sheet.dart';
 
 /// حالات الطلب الميداني
 enum OrderStatus {
@@ -379,9 +380,9 @@ class _OrdersPageState extends State<OrdersPage> {
       );
   }
 
-  /// فتح نافذة إضافة طلب ميداني جديد (Create Order Sheet)
+  /// فتح نافذة إضافة طلب ميداني جديد (Create Order Sheet) مع حقل عميل مرن/اختياري وحاسبة كميات رقمية
   Future<void> _openCreateOrderSheet() async {
-    String selectedCustomer = _availableCustomers.first;
+    final TextEditingController customerController = TextEditingController();
     final List<OrderLineItem> catalogLines = List<OrderLineItem>.generate(
       AlRabieCatalog.items.length,
       (idx) {
@@ -392,7 +393,7 @@ class _OrdersPageState extends State<OrdersPage> {
           category: p.category,
           imageAsset: p.imageAsset,
           unitPrice: p.cartonPrice,
-          quantity: idx == 0 ? 2 : (idx == 1 ? 1 : 0),
+          quantity: 0,
         );
       },
     );
@@ -444,11 +445,14 @@ class _OrdersPageState extends State<OrdersPage> {
                   .where((l) => l.quantity > 0)
                   .map((l) => '[${l.code}] ${l.productName} (${l.quantity} كرتون)')
                   .toList();
+              final effectiveCustomer = customerController.text.trim().isEmpty
+                  ? 'عميل عام (بدون تحديد)'
+                  : customerController.text.trim();
 
               final newOrder = FieldOrderModel(
                 id: 'ORD-${DateTime.now().millisecondsSinceEpoch}',
                 orderNumber: newOrderNum,
-                customerName: selectedCustomer,
+                customerName: effectiveCustomer,
                 branchName: widget.currentBranchId ?? 'الفرع الرئيسي - صنعاء',
                 status: OrderStatus.pending,
                 itemsCount: totalCartons,
@@ -561,34 +565,20 @@ class _OrdersPageState extends State<OrdersPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedCustomer,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: 'العميل / نقطة البيع',
-                        prefixIcon: const Icon(Icons.storefront_rounded),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      items: _availableCustomers.map((cust) {
-                        return DropdownMenuItem<String>(
-                          value: cust,
-                          child: Text(cust, overflow: TextOverflow.ellipsis),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setSheetState(() => selectedCustomer = val);
-                        }
-                      },
+                    FlexibleCustomerField(
+                      controller: customerController,
+                      suggestedCustomers: _availableCustomers,
+                      labelText: 'اسم العميل / نقطة البيع (اختياري)',
+                      hintText:
+                          'اكتب اسم العميل يدوياً أو اختر من القائمة (اختياري)...',
+                      onChanged: (_) => setSheetState(() {}),
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'تحديد الأصناف والكميات (بالكرتون):',
+                      'اضغط على خانة الكمية لفتح الحاسبة الرقمية وإدخال الكراتين:',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        fontSize: 13.5,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -599,7 +589,7 @@ class _OrdersPageState extends State<OrdersPage> {
                           shrinkWrap: true,
                           itemCount: catalogLines.length,
                           separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
+                               const Divider(height: 1),
                           itemBuilder: (context, idx) {
                             final line = catalogLines[idx];
                             final isSelected = line.quantity > 0;
@@ -620,6 +610,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
+                                    flex: 6,
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -658,49 +649,21 @@ class _OrdersPageState extends State<OrdersPage> {
                                       ],
                                     ),
                                   ),
-                                  IconButton.filledTonal(
-                                    onPressed: line.quantity > 0
-                                        ? () => setSheetState(
-                                              () => line.quantity--,
-                                            )
-                                        : null,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 34,
-                                      minHeight: 34,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(
-                                      Icons.remove_rounded,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: 38,
-                                    child: Text(
-                                      '${line.quantity}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton.filled(
-                                    onPressed: () => setSheetState(
-                                      () => line.quantity++,
-                                    ),
-                                    style: IconButton.styleFrom(
-                                      backgroundColor:
-                                          AppConstants.deepNavyBlue,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 34,
-                                      minHeight: 34,
-                                    ),
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(
-                                      Icons.add_rounded,
-                                      size: 18,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    flex: 5,
+                                    child: InteractiveQuantityCalculatorBox(
+                                      label: 'كرتون',
+                                      value: line.quantity,
+                                      productName: line.productName,
+                                      productCode: line.code,
+                                      imageAsset: line.imageAsset,
+                                      category: line.category,
+                                      onQuantitySaved: (val) {
+                                        setSheetState(() {
+                                          line.quantity = val;
+                                        });
+                                      },
                                     ),
                                   ),
                                 ],

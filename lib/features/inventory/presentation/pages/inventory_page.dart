@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
+import '../../../../core/widgets/quantity_calculator_sheet.dart';
 
 /// نموذج بيانات الصنف المرتبط بجدول `products` وكتالوج أصناف الربيع الرسمي (اصناف الربيع.xlsx - ORDER)
 class ProductItemModel {
@@ -315,11 +316,11 @@ class _InventoryPageState extends State<InventoryPage> {
     await _offlineSync.cacheInventoryAudits(serialized);
   }
 
-  /// تعديل سريع لكمية الكرتون أو العبوة مباشرة من بطاقة الصنف (+ / -) بيد واحدة
-  Future<void> _quickAdjustProductQty(
+  /// تعديل أو تعيين مباشر لكمية الكرتون أو العبوة من الحاسبة الرقمية الفورية
+  Future<void> _setProductQtyFromCalculator(
     ProductItemModel product, {
-    int cartonDelta = 0,
-    int packDelta = 0,
+    int? newCartons,
+    int? newPacks,
   }) async {
     final current = _auditRecords[product.id] ??
         InventoryAuditEntry(
@@ -328,12 +329,13 @@ class _InventoryPageState extends State<InventoryPage> {
           packCount: 0,
           damagedCount: 0,
           returnedCount: 0,
-          notes: 'إدخال ميداني سريع [${product.code}]',
+          notes: 'إدخال عبر الحاسبة الرقمية [${product.code}]',
           auditedAt: DateTime.now(),
         );
 
-    final nextCartons = (current.cartonCount + cartonDelta).clamp(0, 9999);
-    final nextPacks = (current.packCount + packDelta).clamp(0, 9999);
+    final nextCartons =
+        (newCartons ?? current.cartonCount).clamp(0, 999999);
+    final nextPacks = (newPacks ?? current.packCount).clamp(0, 999999);
 
     final updated = current.copyWith(
       cartonCount: nextCartons,
@@ -613,24 +615,36 @@ class _InventoryPageState extends State<InventoryPage> {
                       Row(
                         children: [
                           Expanded(
-                            child: _CounterFieldCard(
+                            child: InteractiveQuantityCalculatorBox(
                               label: 'كمية الكرتون',
-                              icon: Icons.all_inbox_rounded,
-                              color: Colors.teal,
-                              controller: cartonCtrl,
-                              onDecrement: () => adjustCounter(cartonCtrl, -1),
-                              onIncrement: () => adjustCounter(cartonCtrl, 1),
+                              value: int.tryParse(cartonCtrl.text) ?? 0,
+                              productName: selectedProduct.name,
+                              productCode: selectedProduct.code,
+                              imageAsset: selectedProduct.imageAsset,
+                              category: selectedProduct.category,
+                              primaryColor: AppConstants.deepNavyBlue,
+                              onQuantitySaved: (val) {
+                                setSheetState(() {
+                                  cartonCtrl.text = '$val';
+                                });
+                              },
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _CounterFieldCard(
+                            child: InteractiveQuantityCalculatorBox(
                               label: 'كمية العبوة (فرط)',
-                              icon: Icons.widgets_outlined,
-                              color: Colors.blue,
-                              controller: packCtrl,
-                              onDecrement: () => adjustCounter(packCtrl, -1),
-                              onIncrement: () => adjustCounter(packCtrl, 1),
+                              value: int.tryParse(packCtrl.text) ?? 0,
+                              productName: selectedProduct.name,
+                              productCode: selectedProduct.code,
+                              imageAsset: selectedProduct.imageAsset,
+                              category: selectedProduct.category,
+                              primaryColor: Colors.blueGrey.shade800,
+                              onQuantitySaved: (val) {
+                                setSheetState(() {
+                                  packCtrl.text = '$val';
+                                });
+                              },
                             ),
                           ),
                         ],
@@ -639,25 +653,36 @@ class _InventoryPageState extends State<InventoryPage> {
                       Row(
                         children: [
                           Expanded(
-                            child: _CounterFieldCard(
+                            child: InteractiveQuantityCalculatorBox(
                               label: 'الكميات التالفة',
-                              icon: Icons.broken_image_outlined,
-                              color: Colors.red,
-                              controller: damagedCtrl,
-                              onDecrement: () => adjustCounter(damagedCtrl, -1),
-                              onIncrement: () => adjustCounter(damagedCtrl, 1),
+                              value: int.tryParse(damagedCtrl.text) ?? 0,
+                              productName: selectedProduct.name,
+                              productCode: selectedProduct.code,
+                              imageAsset: selectedProduct.imageAsset,
+                              category: selectedProduct.category,
+                              primaryColor: Colors.red.shade800,
+                              onQuantitySaved: (val) {
+                                setSheetState(() {
+                                  damagedCtrl.text = '$val';
+                                });
+                              },
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _CounterFieldCard(
+                            child: InteractiveQuantityCalculatorBox(
                               label: 'الكميات المرتجعة',
-                              icon: Icons.assignment_return_outlined,
-                              color: Colors.orange,
-                              controller: returnedCtrl,
-                              onDecrement: () =>
-                                  adjustCounter(returnedCtrl, -1),
-                              onIncrement: () => adjustCounter(returnedCtrl, 1),
+                              value: int.tryParse(returnedCtrl.text) ?? 0,
+                              productName: selectedProduct.name,
+                              productCode: selectedProduct.code,
+                              imageAsset: selectedProduct.imageAsset,
+                              category: selectedProduct.category,
+                              primaryColor: Colors.orange.shade900,
+                              onQuantitySaved: (val) {
+                                setSheetState(() {
+                                  returnedCtrl.text = '$val';
+                                });
+                              },
                             ),
                           ),
                         ],
@@ -1110,47 +1135,44 @@ class _InventoryPageState extends State<InventoryPage> {
                                     const Divider(height: 20),
 
                                     // =========================================
-                                    // أزرار الإدخال السريعة (+ / -) للكرتون والعبوات بيد واحدة
+                                    // حاسبة الكميات الرقمية السريعة للكرتون والعبوة
                                     // =========================================
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: _InlineQuickStepper(
+                                          child:
+                                              InteractiveQuantityCalculatorBox(
                                             label: 'كرتون',
                                             value: currentCartons,
+                                            productName: product.name,
+                                            productCode: product.code,
+                                            imageAsset: product.imageAsset,
+                                            category: product.category,
                                             primaryColor:
                                                 AppConstants.deepNavyBlue,
-                                            accentColor: AppConstants.royalGold,
-                                            onDecrement: () =>
-                                                _quickAdjustProductQty(
+                                            onQuantitySaved: (val) =>
+                                                _setProductQtyFromCalculator(
                                               product,
-                                              cartonDelta: -1,
-                                            ),
-                                            onIncrement: () =>
-                                                _quickAdjustProductQty(
-                                              product,
-                                              cartonDelta: 1,
+                                              newCartons: val,
                                             ),
                                           ),
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
-                                          child: _InlineQuickStepper(
+                                          child:
+                                              InteractiveQuantityCalculatorBox(
                                             label: 'عبوة',
                                             value: currentPacks,
+                                            productName: product.name,
+                                            productCode: product.code,
+                                            imageAsset: product.imageAsset,
+                                            category: product.category,
                                             primaryColor:
                                                 Colors.blueGrey.shade800,
-                                            accentColor:
-                                                Colors.blueGrey.shade100,
-                                            onDecrement: () =>
-                                                _quickAdjustProductQty(
+                                            onQuantitySaved: (val) =>
+                                                _setProductQtyFromCalculator(
                                               product,
-                                              packDelta: -1,
-                                            ),
-                                            onIncrement: () =>
-                                                _quickAdjustProductQty(
-                                              product,
-                                              packDelta: 1,
+                                              newPacks: val,
                                             ),
                                           ),
                                         ),

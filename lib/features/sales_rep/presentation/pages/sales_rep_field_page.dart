@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/al_rabie_catalog.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/offline_sync_service.dart';
+import '../../../../core/widgets/quantity_calculator_sheet.dart';
 import '../../../auth/data/models/user_profile_model.dart';
 
 /// واجهة مندوب المبيعات الميدانية السريعة والخفيفة (Sales Rep Field Interface)
@@ -49,11 +50,16 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
   final List<AlRabieProduct> _catalogProducts =
       List<AlRabieProduct>.unmodifiable(AlRabieCatalog.items);
 
-  String _selectedMerchant = _merchants.first;
   String _selectedCategory = 'الكل';
   String _searchQuery = '';
+  final TextEditingController _customerController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _orderNotesController = TextEditingController();
+
+  String get _effectiveMerchantName {
+    final text = _customerController.text.trim();
+    return text.isEmpty ? 'عميل عام (بدون تحديد)' : text;
+  }
 
   // بيانات جرد المخزون (كرتون + عبوة لكل صنف)
   final Map<String, int> _auditCartons = <String, int>{};
@@ -151,6 +157,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
 
   @override
   void dispose() {
+    _customerController.dispose();
     _searchController.dispose();
     _orderNotesController.dispose();
     for (final c in _auditCartonControllers.values) {
@@ -306,7 +313,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
             'damaged_qty': 0,
             'returned_qty': 0,
             'notes':
-                'جرد ميداني مرسل للمشرف ($batchRef) - التاجر: $_selectedMerchant - [${product.code}] ${product.name}',
+                'جرد ميداني مرسل للمشرف ($batchRef) - التاجر: $_effectiveMerchantName - [${product.code}] ${product.name}',
             'audited_at': now.toIso8601String(),
           };
           localAuditCache[product.id] = entryMap;
@@ -321,7 +328,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
               'damaged_qty': 0,
               'returned_qty': 0,
               'notes':
-                  'مُرسل للمشرف ($batchRef) | الصنف: [${product.code}] ${product.name} | التاجر: $_selectedMerchant | المندوب: ${widget.userProfile.fullName}',
+                  'مُرسل للمشرف ($batchRef) | الصنف: [${product.code}] ${product.name} | التاجر: $_effectiveMerchantName | المندوب: ${widget.userProfile.fullName}',
               'branch_id':
                   widget.userProfile.branchId ?? 'الفرع الرئيسي - صنعاء',
               'audited_by': widget.userProfile.id,
@@ -334,7 +341,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       await _offlineSync.cacheInventoryAudits(localAuditCache);
 
       final summaryText =
-          'تم إرسال الجرد ($batchRef) للمشرف بنجاح • التاجر: $_selectedMerchant • الأصناف المجرودة: $_auditedItemsCount / ${_catalogProducts.length} ($_totalAuditCartons كرتون و $_totalAuditPacks عبوة)';
+          'تم إرسال الجرد ($batchRef) للمشرف بنجاح • العميل: $_effectiveMerchantName • الأصناف المجرودة: $_auditedItemsCount / ${_catalogProducts.length} ($_totalAuditCartons كرتون و $_totalAuditPacks عبوة)';
 
       if (mounted) {
         setState(() {
@@ -423,11 +430,12 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       }
 
       // تحديث الكاش المحلي للطلبات
+      final merchantLabel = _effectiveMerchantName;
       final cachedOrders = _offlineSync.getCachedOrders();
       final newOrderJson = <String, dynamic>{
         'id': orderNumber,
         'order_number': orderNumber,
-        'customer_name': _selectedMerchant,
+        'customer_name': merchantLabel,
         'branch_name': branchName,
         'status': 'pending',
         'items_count': totalCartons,
@@ -443,7 +451,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
         action: 'insert',
         payload: <String, dynamic>{
           'order_number': orderNumber,
-          'customer_name': _selectedMerchant,
+          'customer_name': merchantLabel,
           'status': 'pending',
           'items_count': totalCartons,
           'total_amount': totalAmount,
@@ -455,7 +463,7 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       if (mounted) {
         setState(() {
           _lastOrderSubmissionBanner =
-              'تم إرسال الطلب ($orderNumber) للفرع • التاجر: $_selectedMerchant • الإجمالي: $totalCartons كرتون';
+              'تم إرسال الطلب ($orderNumber) للفرع • العميل: $merchantLabel • الإجمالي: $totalCartons كرتون';
           for (final p in _catalogProducts) {
             _orderCartons[p.id] = 0;
             _orderCartonControllers[p.id]?.text = '0';
@@ -643,64 +651,14 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // اختيار التاجر / نقطة البيع الحالية
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppConstants.cleanLightGrey,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: colorScheme.outlineVariant),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.handshake_rounded,
-                            size: 18,
-                            color: AppConstants.deepNavyBlue,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'التاجر:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
-                              color: AppConstants.deepNavyBlue,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _selectedMerchant,
-                                isExpanded: true,
-                                isDense: true,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13.5,
-                                  color: AppConstants.deepNavyBlue,
-                                ),
-                                items: _merchants.map((m) {
-                                  return DropdownMenuItem<String>(
-                                    value: m,
-                                    child: Text(
-                                      m,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setState(() => _selectedMerchant = val);
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    // حقل اختياري ومرن للعميل / التاجر (كتابة يدوية حرة أو اختيار من القائمة أو تركه فارغاً)
+                    FlexibleCustomerField(
+                      controller: _customerController,
+                      suggestedCustomers: _merchants,
+                      labelText: 'اسم العميل / التاجر (اختياري)',
+                      hintText:
+                          'اكتب اسم العميل يدوياً أو اختر من القائمة (اختياري)...',
+                      onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 8),
 
@@ -1007,32 +965,30 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _DirectNumericStepper(
+                      child: InteractiveQuantityCalculatorBox(
                         label: 'كرتون',
-                        controller: _auditCartonControllers[product.id]!,
+                        value: cartons,
+                        productName: product.name,
+                        productCode: product.code,
+                        imageAsset: product.imageAsset,
+                        category: product.category,
                         primaryColor: AppConstants.deepNavyBlue,
-                        onDecrement: () =>
-                            _setAuditCarton(product.id, cartons - 1),
-                        onIncrement: () =>
-                            _setAuditCarton(product.id, cartons + 1),
-                        onChanged: (val) => _setAuditCarton(
-                          product.id,
-                          int.tryParse(val) ?? 0,
-                        ),
+                        onQuantitySaved: (val) =>
+                            _setAuditCarton(product.id, val),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: _DirectNumericStepper(
+                      child: InteractiveQuantityCalculatorBox(
                         label: 'عبوة (فرط)',
-                        controller: _auditPackControllers[product.id]!,
+                        value: packs,
+                        productName: product.name,
+                        productCode: product.code,
+                        imageAsset: product.imageAsset,
+                        category: product.category,
                         primaryColor: Colors.blueGrey.shade800,
-                        onDecrement: () => _setAuditPack(product.id, packs - 1),
-                        onIncrement: () => _setAuditPack(product.id, packs + 1),
-                        onChanged: (val) => _setAuditPack(
-                          product.id,
-                          int.tryParse(val) ?? 0,
-                        ),
+                        onQuantitySaved: (val) =>
+                            _setAuditPack(product.id, val),
                       ),
                     ),
                   ],
@@ -1149,16 +1105,15 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   flex: 5,
-                  child: _DirectNumericStepper(
+                  child: InteractiveQuantityCalculatorBox(
                     label: 'كرتون مطلوب',
-                    controller: _orderCartonControllers[product.id]!,
+                    value: qty,
+                    productName: product.name,
+                    productCode: product.code,
+                    imageAsset: product.imageAsset,
+                    category: product.category,
                     primaryColor: AppConstants.deepNavyBlue,
-                    onDecrement: () => _setOrderCarton(product.id, qty - 1),
-                    onIncrement: () => _setOrderCarton(product.id, qty + 1),
-                    onChanged: (val) => _setOrderCarton(
-                      product.id,
-                      int.tryParse(val) ?? 0,
-                    ),
+                    onQuantitySaved: (val) => _setOrderCarton(product.id, val),
                   ),
                 ),
               ],
