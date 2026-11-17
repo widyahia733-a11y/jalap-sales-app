@@ -59,7 +59,8 @@ class OfflineSyncService {
   static const String _keyAuditsCache = 'jalap_cache_inventory_audits_alrabie_v3_fixed';
   static const String _keyOrdersCache = 'jalap_cache_orders_clean_v12';
   static const String _keyCustomersCache = 'jalap_cache_customers_clean_v12';
-  static const String _keySyncQueue = 'jalap_sync_queue_v1';
+  static const String _keyReportsCache = 'jalap_cache_reports_v13';
+  static const String _keySyncQueue = 'jalap_sync_queue_v13';
   static const String _keyCatalogSyncedToSupabase = 'jalap_alrabie_supabase_synced_v3';
 
   static const List<String> _legacyCacheKeysToPurge = [
@@ -71,6 +72,7 @@ class OfflineSyncService {
     'jalap_cache_orders_alrabie_v2',
     'jalap_cache_orders_alrabie_v3_fixed',
     'jalap_cache_customers_v1',
+    'jalap_sync_queue_v1',
   ];
 
   SharedPreferences? _prefs;
@@ -214,6 +216,100 @@ class OfflineSyncService {
     return _readJsonList(_keyCustomersCache);
   }
 
+  Future<void> appendReportRecord(Map<String, dynamic> record) async {
+    final current = getCachedReportRecords();
+    current.insert(0, record);
+    await _saveJsonList(_keyReportsCache, current);
+  }
+
+  List<Map<String, dynamic>> getCachedReportRecords() {
+    return _readJsonList(_keyReportsCache);
+  }
+
+  bool _isValidUuid(String? value) {
+    if (value == null || value.trim().isEmpty) return false;
+    final regex = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return regex.hasMatch(value.trim());
+  }
+
+  /// تحويل حمولة البيانات (Payload) لتتوافق 100% مع أعمدة جداول Supabase الفعلية
+  Map<String, dynamic> _normalizePayloadForSupabase(
+    String table,
+    Map<String, dynamic> raw,
+  ) {
+    if (table == AppConstants.tableInventoryAudits) {
+      final rawProd = raw['product_id']?.toString() ??
+          raw['sku']?.toString() ??
+          '43002001';
+      final dbProductId = AlRabieCatalog.databaseIdForProduct(rawProd);
+      final stockQty =
+          ((raw['stock_qty'] ?? raw['carton_qty'] ?? raw['carton_count'])
+                  as num?)
+              ?.toInt() ??
+          0;
+      final repId = (raw['rep_id'] ?? raw['audited_by'])?.toString();
+      final auditDate = (raw['audit_date'] ?? raw['audited_at'])?.toString() ??
+          DateTime.now().toIso8601String();
+      final custId = (raw['customer_id'] is int)
+          ? raw['customer_id'] as int
+          : int.tryParse(raw['customer_id']?.toString() ?? '');
+
+      return <String, dynamic>{
+        if (custId != null) 'customer_id': custId,
+        if (_isValidUuid(repId)) 'rep_id': repId,
+        'product_id': dbProductId,
+        'stock_qty': stockQty,
+        'week_number': ((DateTime.now().day - 1) ~/ 7) + 1,
+        'audit_date': auditDate,
+      };
+    }
+
+    if (table == AppConstants.tableOrders) {
+      final rawProd = raw['product_id']?.toString() ??
+          raw['sku']?.toString() ??
+          '43002001';
+      final dbProductId = AlRabieCatalog.databaseIdForProduct(rawProd);
+      final orderQty =
+          ((raw['order_qty'] ?? raw['items_count'] ?? raw['carton_qty'])
+                  as num?)
+              ?.toInt() ??
+          0;
+      final repId = (raw['rep_id'] ?? raw['created_by'])?.toString();
+      final orderDate = (raw['order_date'] ?? raw['created_at'])?.toString() ??
+          DateTime.now().toIso8601String();
+      final status = raw['status']?.toString() ?? 'pending';
+      final custId = (raw['customer_id'] is int)
+          ? raw['customer_id'] as int
+          : int.tryParse(raw['customer_id']?.toString() ?? '');
+
+      return <String, dynamic>{
+        if (custId != null) 'customer_id': custId,
+        if (_isValidUuid(repId)) 'rep_id': repId,
+        'product_id': dbProductId,
+        'order_qty': orderQty,
+        'status': status,
+        'order_date': orderDate,
+      };
+    }
+
+    if (table == AppConstants.tableCustomers) {
+      final name =
+          (raw['customer_name'] ?? raw['name'] ?? raw['store_name'])?.toString() ??
+              'عميل ميداني';
+      final repId = raw['assigned_rep_id']?.toString();
+      return <String, dynamic>{
+        'customer_name': name,
+        if (raw['governorate'] != null || raw['region'] != null)
+          'governorate': (raw['governorate'] ?? raw['region']).toString(),
+        if (_isValidUuid(repId)) 'assigned_rep_id': repId,
+      };
+    }
+
+    return raw;
+  }
+
   // ===========================================================================
   // إدارة طابور المزامنة (Sync Queue) للعمليات المسجلة بدون إنترنت
   // ===========================================================================
@@ -230,14 +326,12 @@ class OfflineSyncService {
     required Map<String, dynamic> payload,
     String action = 'insert',
   }) async {
+    final normalizedPayload = _normalizePayloadForSupabase(table, payload);
+
     if (AppConstants.isSupabaseConfigured && isOnlineNotifier.value) {
       try {
         final client = Supabase.instance.client.from(table);
-        if (action == 'upsert') {
-          await client.upsert(payload);
-        } else {
-          await client.insert(payload);
-        }
+        await client.insert(normalizedPayload);
         return true;
       } catch (error) {
         debugPrint('Direct sync failed, queuing offline operation: $error');
@@ -250,8 +344,8 @@ class OfflineSyncService {
     final newOp = SyncQueueOperation(
       id: 'SYNC-${DateTime.now().millisecondsSinceEpoch}',
       table: table,
-      action: action,
-      payload: payload,
+      action: 'insert',
+      payload: normalizedPayload,
       createdAt: DateTime.now(),
     );
     currentQueue.add(newOp);
@@ -278,12 +372,9 @@ class OfflineSyncService {
 
     for (final op in currentQueue) {
       try {
+        final normalized = _normalizePayloadForSupabase(op.table, op.payload);
         final client = Supabase.instance.client.from(op.table);
-        if (op.action == 'upsert') {
-          await client.upsert(op.payload);
-        } else {
-          await client.insert(op.payload);
-        }
+        await client.insert(normalized);
         syncedCount++;
       } catch (e) {
         remaining.add(op);

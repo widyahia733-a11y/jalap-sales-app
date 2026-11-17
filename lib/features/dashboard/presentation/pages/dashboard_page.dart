@@ -10,6 +10,7 @@ import '../../../customers/presentation/pages/customers_page.dart';
 import '../../../inventory/presentation/pages/inventory_page.dart';
 import '../../../orders/presentation/pages/orders_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../reports/presentation/pages/reports_page.dart';
 import '../../../sales_rep/presentation/pages/sales_rep_field_page.dart';
 import '../../../sales_reps/presentation/pages/sales_reps_management_page.dart';
 
@@ -284,6 +285,7 @@ class _DashboardPageState extends State<DashboardPage> {
           key: _salesRepsKey,
           onRepsChanged: _refreshLiveDashboardMetrics,
         ),
+      if (isAdmin) const ReportsPage(),
       ProfilePage(
         userProfile: user,
         isSigningOut: _isSigningOut,
@@ -293,51 +295,67 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final List<NavigationDestination> destinations = [
       const NavigationDestination(
-        icon: Icon(Icons.dashboard_outlined),
+        icon: Icon(Icons.dashboard_outlined, size: 22),
         selectedIcon: Icon(
           Icons.dashboard_rounded,
           color: AppConstants.deepNavyBlue,
+          size: 22,
         ),
         label: 'الرئيسية',
       ),
       const NavigationDestination(
-        icon: Icon(Icons.inventory_2_outlined),
+        icon: Icon(Icons.inventory_2_outlined, size: 22),
         selectedIcon: Icon(
           Icons.inventory_2_rounded,
           color: AppConstants.deepNavyBlue,
+          size: 22,
         ),
-        label: 'الأصناف والجرد',
+        label: 'الأصناف',
       ),
       const NavigationDestination(
-        icon: Icon(Icons.receipt_long_outlined),
+        icon: Icon(Icons.receipt_long_outlined, size: 22),
         selectedIcon: Icon(
           Icons.receipt_long_rounded,
           color: AppConstants.deepNavyBlue,
+          size: 22,
         ),
         label: 'الطلبات',
       ),
       const NavigationDestination(
-        icon: Icon(Icons.people_alt_outlined),
+        icon: Icon(Icons.people_alt_outlined, size: 22),
         selectedIcon: Icon(
           Icons.people_alt_rounded,
           color: AppConstants.deepNavyBlue,
+          size: 22,
         ),
         label: 'العملاء',
       ),
       if (isAdmin)
         const NavigationDestination(
-          icon: Icon(Icons.supervisor_account_outlined),
+          icon: Icon(Icons.supervisor_account_outlined, size: 22),
           selectedIcon: Icon(
             Icons.supervisor_account_rounded,
             color: AppConstants.deepNavyBlue,
+            size: 22,
           ),
           label: 'المناديب',
         ),
+      if (isAdmin)
+        const NavigationDestination(
+          icon: Icon(Icons.analytics_outlined, size: 22),
+          selectedIcon: Icon(
+            Icons.analytics_rounded,
+            color: AppConstants.deepNavyBlue,
+            size: 22,
+          ),
+          label: 'التقارير',
+        ),
       const NavigationDestination(
-        icon: Icon(Icons.person_outline_rounded),
+        icon: Icon(Icons.person_outline_rounded, size: 22),
         selectedIcon: Icon(
           Icons.person_rounded,
           color: AppConstants.deepNavyBlue,
+          size: 22,
         ),
         label: 'الحساب',
       ),
@@ -353,18 +371,29 @@ class _DashboardPageState extends State<DashboardPage> {
           index: safeIndex,
           children: pages,
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: safeIndex,
-          onDestinationSelected: (int index) {
-            setState(() => _selectedIndex = index);
-            _refreshLiveDashboardMetrics();
-          },
-          height: 72,
-          elevation: 4,
-          backgroundColor: Colors.white,
-          indicatorColor: AppConstants.softRoyalGold,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          destinations: destinations,
+        bottomNavigationBar: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            labelTextStyle: MaterialStateProperty.all(
+              const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: AppConstants.deepNavyBlue,
+              ),
+            ),
+          ),
+          child: NavigationBar(
+            selectedIndex: safeIndex,
+            onDestinationSelected: (int index) {
+              setState(() => _selectedIndex = index);
+              _refreshLiveDashboardMetrics();
+            },
+            height: 70,
+            elevation: 4,
+            backgroundColor: Colors.white,
+            indicatorColor: AppConstants.softRoyalGold,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            destinations: destinations,
+          ),
         ),
       ),
     );
@@ -726,6 +755,17 @@ class _HomeTabView extends StatelessWidget {
                 ),
               ),
               if (userProfile.isAdmin) ...[
+                const SizedBox(height: 12),
+                _QuickActionTile(
+                  title: 'تقارير الجرد والمبيعات الشاملة',
+                  subtitle:
+                      'فلترة متقدمة حسب المندوب، الفرع/المخزن، الصنف (62 صنفاً)، والتاريخ مع تصدير CSV',
+                  icon: Icons.analytics_rounded,
+                  onTap: () => onQuickActionSelect(
+                    5,
+                    actionLabel: 'تقارير الجرد والمبيعات الشاملة',
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _QuickActionTile(
                   title: 'إضافة مندوب',

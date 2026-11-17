@@ -390,20 +390,39 @@ class _OrdersPageState extends State<OrdersPage> {
               });
 
               await _persistOrdersLocally();
-              final syncedOnline = await _offlineSync.enqueueOrSyncOperation(
-                table: AppConstants.tableOrders,
-                action: 'insert',
-                payload: {
-                  'order_number': newOrder.orderNumber,
+              bool syncedOnline = false;
+              for (final line in catalogLines.where((l) => l.quantity > 0)) {
+                await _offlineSync.appendReportRecord(<String, dynamic>{
+                  'record_type': 'order',
+                  'reference_no': newOrder.orderNumber,
+                  'rep_id': widget.currentUserId ?? '',
+                  'rep_name': 'إدارة المبيعات / المشرف',
+                  'rep_username': 'admin_master',
+                  'branch_name': newOrder.branchName,
                   'customer_name': newOrder.customerName,
-                  'status': newOrder.status.dbValue,
-                  'items_count': newOrder.itemsCount,
-                  'total_amount': newOrder.totalAmount,
-                  if (widget.currentUserId != null)
-                    'created_by': widget.currentUserId,
+                  'product_id': AlRabieCatalog.databaseIdForProduct(line.code),
+                  'sku': line.code,
+                  'product_name': line.productName,
+                  'category': line.category,
+                  'image_asset': line.imageAsset,
+                  'carton_qty': line.quantity,
+                  'pack_qty': 0,
                   'created_at': newOrder.createdAt.toIso8601String(),
-                },
-              );
+                });
+
+                syncedOnline = await _offlineSync.enqueueOrSyncOperation(
+                  table: AppConstants.tableOrders,
+                  action: 'insert',
+                  payload: {
+                    'product_id': line.code,
+                    'order_qty': line.quantity,
+                    'status': newOrder.status.dbValue,
+                    if (widget.currentUserId != null)
+                      'rep_id': widget.currentUserId,
+                    'order_date': newOrder.createdAt.toIso8601String(),
+                  },
+                );
+              }
 
               if (sheetContext.mounted) {
                 Navigator.of(sheetContext).pop();

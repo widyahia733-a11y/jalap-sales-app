@@ -724,10 +724,14 @@ class AlRabieCatalog {
         .replaceAll('×', 'x');
   }
 
-  /// البحث عن صنف من الكتالوج بواسطة رقم الصنف (SKU) أو المعرف المحلي أو الرقم التسلسلي في قاعدة البيانات
+  /// البحث عن صنف من الكتالوج بواسطة رقم الصنف (SKU) أو المعرف المحلي أو الرقم التسلسلي في قاعدة البيانات (1..62)
   static AlRabieProduct? findBySkuOrId(String? key) {
     if (key == null || key.trim().isEmpty) return null;
     final trimmed = key.trim();
+    final asInt = int.tryParse(trimmed);
+    if (asInt != null && asInt >= 1 && asInt <= allProducts.length) {
+      return allProducts[asInt - 1];
+    }
     for (int i = 0; i < allProducts.length; i++) {
       final p = allProducts[i];
       if (p.code == trimmed ||
@@ -738,6 +742,22 @@ class AlRabieCatalog {
       }
     }
     return null;
+  }
+
+  /// إرجاع المعرف الرقمي للصنف في جدول `products` بقاعدة بيانات Supabase (1..62)
+  static int databaseIdForProduct(String key) {
+    final trimmed = key.trim();
+    final asInt = int.tryParse(trimmed);
+    if (asInt != null && asInt >= 1 && asInt <= allProducts.length) {
+      return asInt;
+    }
+    for (int i = 0; i < allProducts.length; i++) {
+      final p = allProducts[i];
+      if (p.id == trimmed || p.code == trimmed || 'rabie-${p.code}' == trimmed) {
+        return i + 1;
+      }
+    }
+    return 1;
   }
 
   static String resolveImageByCodeOrName(String code, String name) {

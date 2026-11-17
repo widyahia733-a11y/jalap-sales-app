@@ -309,21 +309,36 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
           };
           localAuditCache[product.id] = entryMap;
 
+          await _offlineSync.appendReportRecord(<String, dynamic>{
+            'record_type': 'audit',
+            'reference_no': batchRef,
+            'rep_id': widget.userProfile.id,
+            'rep_name': widget.userProfile.fullName,
+            'rep_username': widget.userProfile.username,
+            'branch_name':
+                widget.userProfile.branchId ?? 'فرع صنعاء',
+            'customer_name': _effectiveMerchantName,
+            'product_id': AlRabieCatalog.databaseIdForProduct(product.id),
+            'sku': product.code,
+            'product_name': product.name,
+            'category': product.category,
+            'image_asset': product.imageAsset,
+            'carton_qty': cartons,
+            'pack_qty': packs,
+            'created_at': now.toIso8601String(),
+          });
+
           syncedOnline = await _offlineSync.enqueueOrSyncOperation(
             table: AppConstants.tableInventoryAudits,
-            action: 'upsert',
+            action: 'insert',
             payload: <String, dynamic>{
               'product_id': product.id,
+              'stock_qty': cartons,
               'carton_qty': cartons,
               'pack_qty': packs,
-              'damaged_qty': 0,
-              'returned_qty': 0,
-              'notes':
-                  'مُرسل للمشرف ($batchRef) | الصنف: [${product.code}] ${product.name} | التاجر: $_effectiveMerchantName | المندوب: ${widget.userProfile.fullName}',
-              'branch_id':
-                  widget.userProfile.branchId ?? 'الفرع الرئيسي - صنعاء',
+              'rep_id': widget.userProfile.id,
               'audited_by': widget.userProfile.id,
-              'audited_at': now.toIso8601String(),
+              'audit_date': now.toIso8601String(),
             },
           );
         }
@@ -437,19 +452,43 @@ class _SalesRepFieldPageState extends State<SalesRepFieldPage> {
       cachedOrders.insert(0, newOrderJson);
       await _offlineSync.cacheOrders(cachedOrders);
 
-      final syncedOnline = await _offlineSync.enqueueOrSyncOperation(
-        table: AppConstants.tableOrders,
-        action: 'insert',
-        payload: <String, dynamic>{
-          'order_number': orderNumber,
-          'customer_name': merchantLabel,
-          'status': 'pending',
-          'items_count': totalCartons,
-          'total_amount': totalAmount,
-          'created_by': widget.userProfile.id,
-          'created_at': now.toIso8601String(),
-        },
-      );
+      bool syncedOnline = false;
+      for (final p in _catalogProducts) {
+        final qty = _orderCartons[p.id] ?? 0;
+        if (qty > 0) {
+          await _offlineSync.appendReportRecord(<String, dynamic>{
+            'record_type': 'order',
+            'reference_no': orderNumber,
+            'rep_id': widget.userProfile.id,
+            'rep_name': widget.userProfile.fullName,
+            'rep_username': widget.userProfile.username,
+            'branch_name': branchName,
+            'customer_name': merchantLabel,
+            'product_id': AlRabieCatalog.databaseIdForProduct(p.id),
+            'sku': p.code,
+            'product_name': p.name,
+            'category': p.category,
+            'image_asset': p.imageAsset,
+            'carton_qty': qty,
+            'pack_qty': 0,
+            'created_at': now.toIso8601String(),
+          });
+
+          syncedOnline = await _offlineSync.enqueueOrSyncOperation(
+            table: AppConstants.tableOrders,
+            action: 'insert',
+            payload: <String, dynamic>{
+              'product_id': p.id,
+              'order_qty': qty,
+              'items_count': qty,
+              'status': 'pending',
+              'rep_id': widget.userProfile.id,
+              'created_by': widget.userProfile.id,
+              'order_date': now.toIso8601String(),
+            },
+          );
+        }
+      }
 
       if (mounted) {
         setState(() {
