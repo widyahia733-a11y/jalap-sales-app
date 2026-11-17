@@ -57,8 +57,8 @@ class OfflineSyncService {
 
   static const String _keyProductsCache = 'jalap_cache_products_alrabie_v3_fixed';
   static const String _keyAuditsCache = 'jalap_cache_inventory_audits_alrabie_v3_fixed';
-  static const String _keyOrdersCache = 'jalap_cache_orders_alrabie_v3_fixed';
-  static const String _keyCustomersCache = 'jalap_cache_customers_v1';
+  static const String _keyOrdersCache = 'jalap_cache_orders_clean_v12';
+  static const String _keyCustomersCache = 'jalap_cache_customers_clean_v12';
   static const String _keySyncQueue = 'jalap_sync_queue_v1';
   static const String _keyCatalogSyncedToSupabase = 'jalap_alrabie_supabase_synced_v3';
 
@@ -68,6 +68,9 @@ class OfflineSyncService {
     'jalap_cache_inventory_audits_v1',
     'jalap_cache_inventory_audits_alrabie_v2',
     'jalap_cache_orders_v1',
+    'jalap_cache_orders_alrabie_v2',
+    'jalap_cache_orders_alrabie_v3_fixed',
+    'jalap_cache_customers_v1',
   ];
 
   SharedPreferences? _prefs;

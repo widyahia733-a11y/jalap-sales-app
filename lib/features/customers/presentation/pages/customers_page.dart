@@ -173,70 +173,9 @@ class _CustomersPageState extends State<CustomersPage> {
     );
   }
 
-  /// بيانات العملاء التجريبية المطابقة للفروع وقنوات البيع الفعلية في `channels` و `customers`
+  /// تبدأ قائمة العملاء فارغة تماماً بدون أي عملاء تجريبيين مسبقين لإتاحة الإضافة اليدوية الحرة
   List<FieldCustomerModel> _defaultCustomers() {
-    return const [
-      FieldCustomerModel(
-        id: 'CUST-101',
-        storeName: 'هائل سعيد أنعم وشركاه - المركز التجاري',
-        branchName: 'الفرع الرئيسي - صنعاء',
-        region: 'صنعاء - شارع الستين الجنوبي',
-        phone: '777441122',
-        channel: 'هايبرماركت وأسواق كبرى',
-        latitude: 15.3324,
-        longitude: 44.1782,
-      ),
-      FieldCustomerModel(
-        id: 'CUST-102',
-        storeName: 'سوبرماركت الجند الحديث - فرع حدة',
-        branchName: 'الفرع الرئيسي - صنعاء',
-        region: 'صنعاء - شارع حدة الرئيسي',
-        phone: '771889977',
-        channel: 'سوبرماركت وتجزئة',
-        latitude: 15.3241,
-        longitude: 44.1912,
-      ),
-      FieldCustomerModel(
-        id: 'CUST-103',
-        storeName: 'مؤسسة الخير لتجارة الجملة والتوريدات',
-        branchName: 'فرع الحديدة التجاري',
-        region: 'الحديدة - شارع صنعاء التجاري',
-        phone: '733112233',
-        channel: 'تجار جملة وموزعين',
-        latitude: 14.7979,
-        longitude: 42.9540,
-      ),
-      FieldCustomerModel(
-        id: 'CUST-104',
-        storeName: 'بقالة وتموينات السعيدة',
-        branchName: 'فرع تعز الميداني',
-        region: 'تعز - شارع جمال عبدالناصر',
-        phone: '711778899',
-        channel: 'بقالات وتموينات',
-        latitude: 13.5776,
-        longitude: 44.0178,
-      ),
-      FieldCustomerModel(
-        id: 'CUST-105',
-        storeName: 'هايبر شملان ستار - المركز الرئيسي',
-        branchName: 'فرع عدن - المعلا',
-        region: 'عدن - المنصورة شارع التسعين',
-        phone: '774332211',
-        channel: 'هايبرماركت وأسواق كبرى',
-        latitude: 12.8492,
-        longitude: 44.9765,
-      ),
-      FieldCustomerModel(
-        id: 'CUST-106',
-        storeName: 'مجموعة مطاعم وفنادق التاج الملكي',
-        branchName: 'فرع حضرموت - المكلا',
-        region: 'المكلا - خور المكلا السياحي',
-        phone: '779998877',
-        channel: 'الفنادق والمطاعم (HORECA)',
-        latitude: 14.5404,
-        longitude: 49.1272,
-      ),
-    ];
+    return const <FieldCustomerModel>[];
   }
 
   List<FieldCustomerModel> get _filteredCustomers {

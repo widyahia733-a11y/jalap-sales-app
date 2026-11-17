@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import '../constants/al_rabie_catalog.dart';
 import '../constants/app_constants.dart';
 
-/// حقل اختياري ومرن لتحديد أو كتابة اسم العميل / التاجر يدوياً أو اختياره من القائمة دون أي تقييد إجباري
+/// حقل إدخال حر واختياري لاسم العميل / التاجر (يبدأ فارغاً تماماً بدون أي عملاء وهميين مسبقين)
 class FlexibleCustomerField extends StatelessWidget {
   final TextEditingController controller;
   final List<String> suggestedCustomers;
@@ -15,134 +15,11 @@ class FlexibleCustomerField extends StatelessWidget {
   const FlexibleCustomerField({
     super.key,
     required this.controller,
-    required this.suggestedCustomers,
-    this.labelText = 'العميل / التاجر (اختياري)',
-    this.hintText = 'اكتب اسم العميل يدوياً أو اختر من القائمة (اختياري)...',
+    this.suggestedCustomers = const <String>[],
+    this.labelText = 'اسم العميل / التاجر (إدخال حر - اختياري)',
+    this.hintText = 'اكتب اسم العميل أو نقطة البيع يدوياً هنا...',
     this.onChanged,
   });
-
-  Future<void> _openSuggestionsSheet(BuildContext context) async {
-    FocusScope.of(context).unfocus();
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.white,
-      useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetCtx) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppConstants.softRoyalGold,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppConstants.royalGold),
-                      ),
-                      child: const Icon(
-                        Icons.storefront_rounded,
-                        color: AppConstants.deepNavyBlue,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'اختيار سريع من قائمة العملاء المسجلين',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: AppConstants.deepNavyBlue,
-                            ),
-                          ),
-                          Text(
-                            'أو يمكنك إغلاق القائمة وكتابة أي اسم عميل يدوياً أو تركه فارغاً',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(sheetCtx).pop(''),
-                      child: const Text('بدون تحديد'),
-                    ),
-                  ],
-                ),
-                const Divider(height: 18),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: suggestedCustomers.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, idx) {
-                      final cust = suggestedCustomers[idx];
-                      final isCurrent = controller.text.trim() == cust;
-                      return ListTile(
-                        dense: true,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        tileColor:
-                            isCurrent ? AppConstants.softRoyalGold : null,
-                        leading: Icon(
-                          isCurrent
-                              ? Icons.check_circle_rounded
-                              : Icons.handshake_outlined,
-                          color: AppConstants.deepNavyBlue,
-                          size: 20,
-                        ),
-                        title: Text(
-                          cust,
-                          style: TextStyle(
-                            fontWeight:
-                                isCurrent ? FontWeight.w900 : FontWeight.w600,
-                            fontSize: 13.5,
-                            color: AppConstants.deepNavyBlue,
-                          ),
-                        ),
-                        onTap: () => Navigator.of(sheetCtx).pop(cust),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (selected != null) {
-      controller.text = selected;
-      onChanged?.call(selected);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,59 +39,20 @@ class FlexibleCustomerField extends StatelessWidget {
             labelText: labelText,
             hintText: hintText,
             prefixIcon: const Icon(
-              Icons.person_pin_circle_rounded,
+              Icons.edit_location_alt_rounded,
               color: AppConstants.deepNavyBlue,
               size: 20,
             ),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasText)
-                  IconButton(
+            suffixIcon: hasText
+                ? IconButton(
                     tooltip: 'مسح اسم العميل',
                     onPressed: () {
                       controller.clear();
                       onChanged?.call('');
                     },
                     icon: const Icon(Icons.clear_rounded, size: 18),
-                  ),
-                IconButton(
-                  tooltip: 'اختيار من قائمة العملاء المقترحة',
-                  onPressed: () => _openSuggestionsSheet(context),
-                  icon: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppConstants.softRoyalGold,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppConstants.royalGold),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.list_alt_rounded,
-                          size: 15,
-                          color: AppConstants.deepNavyBlue,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'القائمة',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: AppConstants.deepNavyBlue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
-            ),
+                  )
+                : null,
             filled: true,
             fillColor: AppConstants.cleanLightGrey,
             isDense: true,
@@ -244,7 +82,7 @@ class FlexibleCustomerField extends StatelessWidget {
   }
 }
 
-/// زر كمية تفاعلي يفتح الحاسبة الرقمية الفورية عند اللمس لإدخال الكميات الكبيرة بسرعة فائقة
+/// زر كمية تفاعلي يفتح الحاسبة الرقمية المتقدمة (+, -, ×) عند اللمس لإدخال الكميات الكبيرة بسرعة فائقة
 class InteractiveQuantityCalculatorBox extends StatelessWidget {
   final String label;
   final int value;
@@ -316,7 +154,7 @@ class InteractiveQuantityCalculatorBox extends StatelessWidget {
                 ),
               ),
               child: Icon(
-                Icons.dialpad_rounded,
+                Icons.calculate_rounded,
                 size: 16,
                 color: hasValue ? AppConstants.royalGold : primaryColor,
               ),
@@ -340,7 +178,7 @@ class InteractiveQuantityCalculatorBox extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    hasValue ? '$value' : 'اضغط للإدخال',
+                    hasValue ? '$value' : 'اضغط للحاسبة',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -367,7 +205,7 @@ class InteractiveQuantityCalculatorBox extends StatelessWidget {
               )
             else
               Icon(
-                Icons.edit_rounded,
+                Icons.dialpad_rounded,
                 size: 15,
                 color: primaryColor.withOpacity(0.6),
               ),
@@ -378,7 +216,7 @@ class InteractiveQuantityCalculatorBox extends StatelessWidget {
   }
 }
 
-/// نافذة الحاسبة الرقمية الفورية لإدخال الكميات الكبيرة (مثل 1000 أو 2500 كرتون) بلمسة واحدة
+/// نافذة الحاسبة الرقمية المتقدمة المزودة بالعمليات الحسابية (+, -, ×, =) وإدخال الكميات الكبيرة
 Future<int?> showQuantityCalculatorSheet({
   required BuildContext context,
   required int initialValue,
@@ -433,42 +271,150 @@ class _QuantityCalculatorDialogBody extends StatefulWidget {
 
 class _QuantityCalculatorDialogBodyState
     extends State<_QuantityCalculatorDialogBody> {
-  late String _inputBuffer;
+  /// التعبير الحسابي الكامل مثل "25 × 40" أو "500 + 250" أو "1000"
+  late String _expression;
   bool _replaceOnNextDigit = true;
 
   @override
   void initState() {
     super.initState();
-    _inputBuffer = widget.initialValue > 0 ? '${widget.initialValue}' : '0';
+    _expression = widget.initialValue > 0 ? '${widget.initialValue}' : '0';
     _replaceOnNextDigit = true;
   }
 
-  int get _currentNumericValue =>
-      (int.tryParse(_inputBuffer) ?? 0).clamp(0, 999999);
+  bool _isOperator(String ch) => ch == '+' || ch == '-' || ch == '×';
+
+  /// تقييم التعبير الحسابي (+, -, ×) مع مراعاة أولوية الضرب (×) على الجمع والطرح
+  int _evaluateExpression(String expr) {
+    final cleaned = expr.replaceAll(' ', '').trim();
+    if (cleaned.isEmpty) return 0;
+
+    // استخراج الأرقام والعمليات بالترتيب
+    final List<int> numbers = <int>[];
+    final List<String> ops = <String>[];
+
+    String currentNum = '';
+    for (int i = 0; i < cleaned.length; i++) {
+      final ch = cleaned[i];
+      if (_isOperator(ch)) {
+        if (currentNum.isEmpty) {
+          numbers.add(0);
+        } else {
+          numbers.add(int.tryParse(currentNum) ?? 0);
+          currentNum = '';
+        }
+        ops.add(ch);
+      } else {
+        currentNum += ch;
+      }
+    }
+
+    if (currentNum.isNotEmpty) {
+      numbers.add(int.tryParse(currentNum) ?? 0);
+    } else if (ops.isNotEmpty) {
+      // في حال انتهى التعبير بعملية غير مكتملة مثل "25 × "، نتجاهل العملية الأخيرة مؤقتاً
+      ops.removeLast();
+    }
+
+    if (numbers.isEmpty) return 0;
+
+    // 1. تنفيذ عمليات الضرب (×) أولاً
+    final List<int> addSubNums = <int>[numbers.first];
+    final List<String> addSubOps = <String>[];
+
+    for (int i = 0; i < ops.length; i++) {
+      final op = ops[i];
+      final nextNum = (i + 1 < numbers.length) ? numbers[i + 1] : 1;
+      if (op == '×') {
+        final prev = addSubNums.removeLast();
+        addSubNums.add((prev * nextNum).clamp(0, 9999999));
+      } else {
+        addSubOps.add(op);
+        addSubNums.add(nextNum);
+      }
+    }
+
+    // 2. تنفيذ عمليات الجمع (+) والطرح (-)
+    int total = addSubNums.first;
+    for (int i = 0; i < addSubOps.length; i++) {
+      final op = addSubOps[i];
+      final nextNum = (i + 1 < addSubNums.length) ? addSubNums[i + 1] : 0;
+      if (op == '+') {
+        total += nextNum;
+      } else if (op == '-') {
+        total -= nextNum;
+      }
+    }
+
+    return total.clamp(0, 999999);
+  }
+
+  int get _evaluatedResult => _evaluateExpression(_expression);
+
+  bool get _hasOperator =>
+      _expression.contains('+') ||
+      _expression.contains('-') ||
+      _expression.contains('×');
 
   void _appendDigits(String digits) {
     setState(() {
-      if (_replaceOnNextDigit || _inputBuffer == '0') {
+      if (_replaceOnNextDigit && !_hasOperator) {
         if (digits == '0' || digits == '00' || digits == '000') {
-          _inputBuffer = '0';
+          _expression = '0';
         } else {
-          _inputBuffer = digits;
+          _expression = digits;
         }
         _replaceOnNextDigit = false;
-      } else {
-        final candidate = '$_inputBuffer$digits';
-        if (candidate.length <= 6) {
-          _inputBuffer = candidate;
-        }
+        return;
       }
+
+      _replaceOnNextDigit = false;
+      if (_expression == '0') {
+        if (digits == '0' || digits == '00' || digits == '000') {
+          _expression = '0';
+        } else {
+          _expression = digits;
+        }
+        return;
+      }
+
+      if (_expression.length + digits.length <= 18) {
+        _expression = '$_expression$digits';
+      }
+    });
+  }
+
+  void _appendOperator(String op) {
+    setState(() {
+      _replaceOnNextDigit = false;
+      final trimmed = _expression.trim();
+      if (trimmed.isEmpty) {
+        _expression = '0 $op ';
+        return;
+      }
+      final lastChar = trimmed[trimmed.length - 1];
+      if (_isOperator(lastChar)) {
+        // استبدال العملية الأخيرة بالعملية الجديدة
+        _expression = '${trimmed.substring(0, trimmed.length - 1)}$op ';
+      } else {
+        _expression = '$trimmed $op ';
+      }
+    });
+  }
+
+  void _evaluateNow() {
+    setState(() {
+      final result = _evaluatedResult;
+      _expression = '$result';
+      _replaceOnNextDigit = true;
     });
   }
 
   void _addPreset(int delta) {
     setState(() {
-      final base = _replaceOnNextDigit ? 0 : _currentNumericValue;
+      final base = _replaceOnNextDigit ? 0 : _evaluatedResult;
       final next = (base + delta).clamp(0, 999999);
-      _inputBuffer = '$next';
+      _expression = '$next';
       _replaceOnNextDigit = false;
     });
   }
@@ -476,35 +422,39 @@ class _QuantityCalculatorDialogBodyState
   void _backspace() {
     setState(() {
       _replaceOnNextDigit = false;
-      if (_inputBuffer.length <= 1) {
-        _inputBuffer = '0';
+      String trimmed = _expression.trimRight();
+      if (trimmed.length <= 1) {
+        _expression = '0';
       } else {
-        _inputBuffer = _inputBuffer.substring(0, _inputBuffer.length - 1);
+        trimmed = trimmed.substring(0, trimmed.length - 1).trimRight();
+        _expression = trimmed.isEmpty ? '0' : trimmed;
       }
     });
   }
 
   void _clear() {
     setState(() {
-      _inputBuffer = '0';
+      _expression = '0';
       _replaceOnNextDigit = false;
     });
   }
 
   void _submit() {
-    Navigator.of(context).pop(_currentNumericValue);
+    Navigator.of(context).pop(_evaluatedResult);
   }
 
   @override
   Widget build(BuildContext context) {
+    final int finalValue = _evaluatedResult;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
         padding: EdgeInsets.only(
           right: 18,
           left: 18,
-          top: 14,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -521,7 +471,7 @@ class _QuantityCalculatorDialogBodyState
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // معلومات الصنف المختار
               Row(
@@ -531,7 +481,7 @@ class _QuantityCalculatorDialogBodyState
                     AlRabieProductThumbnail(
                       imageAsset: widget.imageAsset!,
                       category: widget.category ?? '',
-                      size: 48,
+                      size: 46,
                     ),
                     const SizedBox(width: 10),
                   ],
@@ -562,7 +512,7 @@ class _QuantityCalculatorDialogBodyState
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'إدخال ${widget.unitLabel}',
+                              'حاسبة ${widget.unitLabel}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
@@ -571,14 +521,14 @@ class _QuantityCalculatorDialogBodyState
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           widget.productName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
-                            fontSize: 14.5,
+                            fontSize: 14,
                             color: AppConstants.deepNavyBlue,
                           ),
                         ),
@@ -591,12 +541,12 @@ class _QuantityCalculatorDialogBodyState
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
-              // شاشة عرض الرقم الكبيرة والواضحة
+              // شاشة الحاسبة الرقمية (تعرض العملية الحسابية والنتيجة النهائية الفورية)
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -612,50 +562,74 @@ class _QuantityCalculatorDialogBodyState
                     width: 1.5,
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           widget.unitLabel,
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'اكتب الكمية مباشرة من لوحة الأرقام',
-                          style: TextStyle(
-                            color: AppConstants.royalGold,
-                            fontSize: 10.5,
+                        if (_hasOperator)
+                          Text(
+                            _expression,
+                            textDirection: TextDirection.ltr,
+                            style: const TextStyle(
+                              color: AppConstants.royalGold,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )
+                        else
+                          const Text(
+                            'يدعم الجمع (+) والطرح (-) والضرب (×)',
+                            style: TextStyle(
+                              color: AppConstants.royalGold,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _hasOperator ? 'النتيجة =' : 'الكمية:',
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            _hasOperator ? '$finalValue' : _expression,
+                            textDirection: TextDirection.ltr,
+                            style: const TextStyle(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 1.1,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    Flexible(
-                      child: Text(
-                        _inputBuffer,
-                        textDirection: TextDirection.ltr,
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
-              // أزرار الإضافة السريعة للكميات الكبيرة (+10 / +50 / +100 / +500 / +1000)
+              // أزرار الإضافة السريعة للكميات الكبيرة (+10 / +50 / +100 / +500 / +1000 / +2500)
               SizedBox(
-                height: 36,
+                height: 34,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
@@ -663,6 +637,7 @@ class _QuantityCalculatorDialogBodyState
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: ActionChip(
+                          visualDensity: VisualDensity.compact,
                           backgroundColor: AppConstants.softRoyalGold,
                           side: const BorderSide(color: AppConstants.royalGold),
                           label: Text(
@@ -670,7 +645,7 @@ class _QuantityCalculatorDialogBodyState
                             textDirection: TextDirection.ltr,
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
-                              fontSize: 12.5,
+                              fontSize: 12,
                               color: AppConstants.deepNavyBlue,
                             ),
                           ),
@@ -680,13 +655,47 @@ class _QuantityCalculatorDialogBodyState
                   ],
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
 
-              // لوحة الحاسبة الرقمية التفاعلية
+              // لوحة الحاسبة الرقمية المتقدمة مع العمليات الحسابية (+, -, ×, =)
               Directionality(
                 textDirection: TextDirection.ltr,
                 child: Column(
                   children: [
+                    // الصف الأول: C, 00, 000, ⌫
+                    Row(
+                      children: [
+                        _CalcKeyButton(
+                          label: 'C',
+                          isAction: true,
+                          color: Colors.red.shade700,
+                          onTap: _clear,
+                        ),
+                        const SizedBox(width: 8),
+                        _CalcKeyButton(
+                          label: '00',
+                          isAction: true,
+                          color: AppConstants.royalNavySecondary,
+                          onTap: () => _appendDigits('00'),
+                        ),
+                        const SizedBox(width: 8),
+                        _CalcKeyButton(
+                          label: '000',
+                          isAction: true,
+                          color: AppConstants.royalNavySecondary,
+                          onTap: () => _appendDigits('000'),
+                        ),
+                        const SizedBox(width: 8),
+                        _CalcKeyButton(
+                          label: '⌫',
+                          isAction: true,
+                          color: Colors.orange.shade800,
+                          onTap: _backspace,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // الصف الثاني: 7, 8, 9, ×
                     Row(
                       children: [
                         _CalcKeyButton(
@@ -705,14 +714,16 @@ class _QuantityCalculatorDialogBodyState
                         ),
                         const SizedBox(width: 8),
                         _CalcKeyButton(
-                          label: '⌫',
+                          label: '×',
                           isAction: true,
-                          color: Colors.orange.shade800,
-                          onTap: _backspace,
+                          color: AppConstants.deepNavyBlue,
+                          textColor: AppConstants.royalGold,
+                          onTap: () => _appendOperator('×'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // الصف الثالث: 4, 5, 6, -
                     Row(
                       children: [
                         _CalcKeyButton(
@@ -731,14 +742,16 @@ class _QuantityCalculatorDialogBodyState
                         ),
                         const SizedBox(width: 8),
                         _CalcKeyButton(
-                          label: 'C',
+                          label: '-',
                           isAction: true,
-                          color: Colors.red.shade700,
-                          onTap: _clear,
+                          color: AppConstants.deepNavyBlue,
+                          textColor: AppConstants.royalGold,
+                          onTap: () => _appendOperator('-'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // الصف الرابع: 1, 2, 3, +
                     Row(
                       children: [
                         _CalcKeyButton(
@@ -757,14 +770,16 @@ class _QuantityCalculatorDialogBodyState
                         ),
                         const SizedBox(width: 8),
                         _CalcKeyButton(
-                          label: '00',
+                          label: '+',
                           isAction: true,
-                          color: AppConstants.royalNavySecondary,
-                          onTap: () => _appendDigits('00'),
+                          color: AppConstants.deepNavyBlue,
+                          textColor: AppConstants.royalGold,
+                          onTap: () => _appendOperator('+'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // الصف الخامس: 0 (عريض) وزر (=) لحساب النتيجة وزر الاعتماد السريع
                     Row(
                       children: [
                         _CalcKeyButton(
@@ -774,16 +789,16 @@ class _QuantityCalculatorDialogBodyState
                         ),
                         const SizedBox(width: 8),
                         _CalcKeyButton(
-                          label: '000',
+                          label: '=',
                           isAction: true,
-                          color: AppConstants.royalNavySecondary,
-                          onTap: () => _appendDigits('000'),
+                          color: Colors.teal.shade700,
+                          onTap: _evaluateNow,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           flex: 1,
                           child: SizedBox(
-                            height: 52,
+                            height: 48,
                             child: FilledButton(
                               onPressed: _submit,
                               style: FilledButton.styleFrom(
@@ -806,11 +821,11 @@ class _QuantityCalculatorDialogBodyState
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // زر الاعتماد النهائي للكمية
               SizedBox(
-                height: 52,
+                height: 50,
                 child: FilledButton.icon(
                   onPressed: _submit,
                   style: FilledButton.styleFrom(
@@ -825,9 +840,9 @@ class _QuantityCalculatorDialogBodyState
                     color: AppConstants.royalGold,
                   ),
                   label: Text(
-                    'اعتماد الكمية ($_currentNumericValue ${widget.unitLabel})',
+                    'اعتماد الكمية ($finalValue ${widget.unitLabel})',
                     style: const TextStyle(
-                      fontSize: 15.5,
+                      fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -846,6 +861,7 @@ class _CalcKeyButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isAction;
   final Color? color;
+  final Color? textColor;
   final int flex;
 
   const _CalcKeyButton({
@@ -853,6 +869,7 @@ class _CalcKeyButton extends StatelessWidget {
     required this.onTap,
     this.isAction = false,
     this.color,
+    this.textColor,
     this.flex = 1,
   });
 
@@ -872,7 +889,7 @@ class _CalcKeyButton extends StatelessWidget {
           },
           borderRadius: BorderRadius.circular(14),
           child: Container(
-            height: 52,
+            height: 48,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
@@ -883,9 +900,10 @@ class _CalcKeyButton extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: 19,
                 fontWeight: FontWeight.w900,
-                color: isAction ? Colors.white : AppConstants.deepNavyBlue,
+                color: textColor ??
+                    (isAction ? Colors.white : AppConstants.deepNavyBlue),
               ),
             ),
           ),

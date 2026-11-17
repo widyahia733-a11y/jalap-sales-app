@@ -194,14 +194,7 @@ class _OrdersPageState extends State<OrdersPage> {
   OrderStatus? _selectedFilter;
   bool _isLoading = false;
 
-  static const List<String> _availableCustomers = [
-    'هائل سعيد أنعم وشركاه - المركز التجاري',
-    'سوبرماركت الجند الحديث - فرع حدة',
-    'مؤسسة الخير لتجارة الجملة - الحصبة',
-    'بقالة وتموينات السعيدة - شارع تعز',
-    'هايبر شملان ستار - فرع الستين',
-    'مجموعة مطاعم وفنادق التاج الملكي',
-  ];
+  static const List<String> _availableCustomers = <String>[];
 
   @override
   void initState() {
@@ -258,76 +251,7 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   List<FieldOrderModel> _defaultFieldOrders() {
-    final now = DateTime.now();
-    return [
-      FieldOrderModel(
-        id: 'ORD-101',
-        orderNumber: 'INV-202681',
-        customerName: 'هائل سعيد أنعم وشركاه - المركز التجاري',
-        branchName: 'الفرع الرئيسي - صنعاء',
-        status: OrderStatus.pending,
-        itemsCount: 18,
-        totalAmount: 109400.0,
-        createdAt: now.subtract(const Duration(minutes: 35)),
-        summaryItems: const [
-          '[43002001] عصير الربيع مانجو 18 × 185 ملي (10 كرتون)',
-          '[43001021] حليب الربيع وسط 27 × 250 ملي (8 كرتون)',
-        ],
-      ),
-      FieldOrderModel(
-        id: 'ORD-102',
-        orderNumber: 'INV-202680',
-        customerName: 'سوبرماركت الجند الحديث - فرع حدة',
-        branchName: 'الفرع الرئيسي - صنعاء',
-        status: OrderStatus.completed,
-        itemsCount: 25,
-        totalAmount: 168000.0,
-        createdAt: now.subtract(const Duration(hours: 3)),
-        summaryItems: const [
-          '[43002051] عصير الربيع مانجو 8 × 1 لتر (15 كرتون)',
-          '[43002013] عصير الربيع برازما مانجو 18 × 250 ملي (10 كرتون)',
-        ],
-      ),
-      FieldOrderModel(
-        id: 'ORD-103',
-        orderNumber: 'INV-202679',
-        customerName: 'مؤسسة الخير لتجارة الجملة - الحصبة',
-        branchName: 'فرع الحديدة التجاري',
-        status: OrderStatus.pending,
-        itemsCount: 12,
-        totalAmount: 62400.0,
-        createdAt: now.subtract(const Duration(hours: 5)),
-        summaryItems: const [
-          '[43001003] حليب الربيع بالشوكولاتة 18 × 185 ملي (12 كرتون)',
-        ],
-      ),
-      FieldOrderModel(
-        id: 'ORD-104',
-        orderNumber: 'INV-202678',
-        customerName: 'بقالة وتموينات السعيدة - شارع تعز',
-        branchName: 'فرع تعز الميداني',
-        status: OrderStatus.completed,
-        itemsCount: 9,
-        totalAmount: 66600.0,
-        createdAt: now.subtract(const Duration(days: 1)),
-        summaryItems: const [
-          '[43003001] كابتشينو قهوة 330x18ملي (9 كرتون)',
-        ],
-      ),
-      FieldOrderModel(
-        id: 'ORD-105',
-        orderNumber: 'INV-202677',
-        customerName: 'هايبر شملان ستار - فرع الستين',
-        branchName: 'فرع عدن - المعلا',
-        status: OrderStatus.cancelled,
-        itemsCount: 6,
-        totalAmount: 27000.0,
-        createdAt: now.subtract(const Duration(days: 1, hours: 4)),
-        summaryItems: const [
-          'تم إلغاء الطلب بناءً على طلب العميل لتعديل الكميات',
-        ],
-      ),
-    ];
+    return const <FieldOrderModel>[];
   }
 
   List<FieldOrderModel> get _filteredOrders {
